@@ -2,7 +2,7 @@
 import pdb_util as util
 from copy import deepcopy
 import os, itertools
-from collections import OrderedDict
+import collections
 
 class simplepdb:
     '''
@@ -100,7 +100,7 @@ class simplepdb:
                 unsorted_resmap[resnum] = [old_idx]
             else:
                 unsorted_resmap[resnum].append(old_idx)
-        resmap = OrderedDict(sorted(unsorted_resmap.items(), key=lambda t: t[0]))
+        resmap = collections.OrderedDict(sorted(unsorted_resmap.items(), key=lambda t: t[0]))
         new_indices = list(itertools.chain.from_iterable(resmap.values()))
         new_mol_data = {}
         for key in self.mol_data:
@@ -202,6 +202,16 @@ class simplepdb:
         '''
         aa = util.get_available_res(ff).intersection(self.mol_data['resname'])
         return len(aa) > 0
+
+    def unique_names(self):
+        '''
+        Returns true if atom names are unique
+        '''
+        #TODO: include resname
+        counter = collections.Counter(self.mol_data['atomname'])
+        if any(t > 1 for t in counter.values()):
+            return False
+        return True
     
     def writepdb(self, fname, end=True, start_atom=1, start_res=1):
         '''
