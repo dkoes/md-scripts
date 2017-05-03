@@ -51,7 +51,8 @@ def get_fname(fname):
     i = 0
     name = fname.split('_')
     if len(name) > 1:
-        base,ext = fname.split('_')
+        base = '_'.join(name[:-1])
+        ext = '_' + name[-1]
     else:
         base,ext = os.path.splitext(fname)
     while 1:
