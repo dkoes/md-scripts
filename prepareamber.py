@@ -252,7 +252,7 @@ def set_matches(fname, libs, reslist, orphaned_res, mol, force=False):
             atomcopy = False
             for line in f:
                 if line.startswith('!'):
-                    if line.split().split('.')[-1] == 'atoms':
+                    if line.split()[0].split('.')[-1] == 'atoms':
                         atomcopy = True
                     else:
                         atomcopy = False
@@ -382,15 +382,18 @@ if __name__ == '__main__':
             outpdb = base + '.pdb'
             outpdb = util.get_fname(outpdb)
             try:
-                obabel[structure, '-O', outpdb]
+                obabel[structure, '-O', outpdb]()
             except Exception as e:
                 print 'Cannot create PDB from input, error {0} : {1}. Check \
                 {2}. Aborting...\n'.format(e.errno, e.strerror, outpdb)
                 sys.exit()
             idx = args.structures.index(structure)
             args.structures[idx] = outpdb
+            structure = outpdb
         mol_res = {}
         mol_data[structure] = pdb.simplepdb(structure)
+        if not mol_data[structure].unique_names() and not mol_data[structure].is_protein():
+            mol_data[structure].rename_atoms()
         mol_res[structure] = set(mol_data[structure].mol_data['resname'])
         nonstandard_res[structure] = list(mol_res[structure] - standard_res)
 
