@@ -23,7 +23,7 @@ def get_cmd(input_str):
     return cmd_dict[ext]
 
 
-def make_amber_parm(fname, base, ff, wat_dist = 0, libs=[], frcmod = ''):
+def make_amber_parm(fname, base, ff, water_model = '', wat_dist = 0, libs=[], frcmod = ''):
     '''
     Generate AMBER parameters with tleap
     '''
@@ -35,8 +35,8 @@ def make_amber_parm(fname, base, ff, wat_dist = 0, libs=[], frcmod = ''):
         for lib in libs:
             leap_input.write(get_cmd(lib) + ' ' + lib + '\n')
         leap_input.write(base + '=' + get_cmd(fname) + ' ' + fname + '\n')
-        if wat_dist:
-            leap_input.write('source leaprc.water.tip3p\n' + 
+        if water_model:
+            leap_input.write('source ' + water_model + '\n' + 
                     'solvateoct '+base+' TIP3PBOX ' + str(wat_dist) + '\n' + 
                     'addions '+base+' Na+ 0\n' + 
                     'addions '+base+' Cl- 0\n')
@@ -301,6 +301,9 @@ if __name__ == '__main__':
     parser.add_argument('-w', '--water_dist', default=12, help='Water box \
     distance; defaults to 12.')
 
+    parser.add_argument('-wm', '--water_model', default='leaprc.water.tip3p',
+            help='Water model; OPC, SPCE, TIP4P, and TIP3P are available. Defaults to tip3p')
+
     parser.add_argument('-ff', '--force_field', default='leaprc.protein.ff15ipq',
             help='Force field; defaults to ff15ipq.')
 
@@ -354,6 +357,14 @@ if __name__ == '__main__':
             problems later.\n"
         else:
             ff = amberhome + '/dat/leap/cmd/' + args.force_field
+
+    #Find out which water model we're using
+    if args.water_model == 'opc':
+        args.water_model = 'leaprc.water.opc'
+    elif args.water_model == 'spce':
+        args.water_model = 'leaprc.water.spce'
+    elif args.water_model == 'tip4':
+        args.water_model = 'leaprc.water.tip4pew'
 
     #do we have nonstandard residues?
     mol_data = {}
@@ -478,6 +489,6 @@ cofactors\n" % ' '.join(orphaned_res)
         complex_name = args.structures[0]
         base = util.get_base(complex_name)
         base = base.split('_')[0]
-    make_amber_parm(complex_name, base, ff, args.water_dist, libs)
+    make_amber_parm(complex_name, base, ff, args.water_model, args.water_dist, libs)
     if not args.parm_only: do_amber_preproduction(base, args, ff)
     if args.run_prod_md: do_amber_production(base)
