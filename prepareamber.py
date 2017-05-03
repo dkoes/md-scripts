@@ -302,7 +302,8 @@ if __name__ == '__main__':
     distance; defaults to 12.')
 
     parser.add_argument('-wm', '--water_model', default='leaprc.water.tip3p',
-            help='Water model; OPC, SPCE, TIP4P, and TIP3P are available. Defaults to tip3p')
+            help='Water model; OPC, SPCE, TIP4P, and TIP3P are available. \
+            Defaults to TIP3P.')
 
     parser.add_argument('-ff', '--force_field', default='leaprc.protein.ff15ipq',
             help='Force field; defaults to ff15ipq.')
