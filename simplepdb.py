@@ -12,9 +12,16 @@ class simplepdb:
 
     Attributes:
         mol_data: Dictionary of PDB column names and their values.
-        ters_recs : Locations of breaks in the molecule, per the input PDB or
+
+        ters : Locations of breaks in the molecule, per the input PDB or
         resulting from simple operations such as merging molecules. Specified
         as a list of residues that appear immediately _before_ a break.
+
+        connect: Connect records for the molecule. Format is a dictionary where
+        the keys are the atoms that were found in the input connect record and
+        the values are the list of atoms to which they were bonded (per that
+        record). 
+
         natoms: Number of atoms in molecule(s).
     '''
     def __init__(self, other):
@@ -32,7 +39,7 @@ class simplepdb:
             input PDB or object of the same type.\n'
             assert os.path.splitext(other)[-1] == '.pdb', 'Not a PDB file.\n'
             self.mol_data = self.parse_pdb(other)
-            self.ters = self.get_ters(other)
+            self.ters,self.connect = self.get_ters_and_connect(other)
             self.natoms = len(self.mol_data['atomnum'])
 
     def __eq__(self, other):
@@ -68,12 +75,14 @@ class simplepdb:
             mol_data = set_element(mol_data)
         return mol_data
 
-    def get_ters(self, pdb):
+    def get_ters_and_connect(self, pdb):
         '''
-        Returns a list of breaks in a PDB file
+        Returns a list of breaks in a PDB file and a dictionary of CONECT records
         '''
         ters = []
+        connect = collections.OrderedDict()
         last_line = ''
+        parse = util.make_parser(util.pdb_connectfields)
         with open (pdb,'r') as f:
             for line in f:
                 if line.startswith('TER'):
@@ -81,12 +90,21 @@ class simplepdb:
                     if not ter:
                         ter = last_line[23:27].strip()
                     if ter: ters.append(int(ter)) 
-                if line.startswith('ATOM') or line.startswith('HETATM'):
+                elif line.startswith('CONECT'):
+                    contents = parse(line)
+                    atom = int(contents[1])
+                    bonds = [int(bond) for bond in contents[2:] if
+                            bond.strip()]
+                    if atom not in connect:
+                        connect[atom] = bonds
+                    else:
+                        connect[atom] = connect[atom] + bonds
+                elif line.startswith('ATOM') or line.startswith('HETATM'):
                     last_line = line
         ter = last_line[23:27].strip()
         if ter and not ter in ters:
             ters.append(ter)
-        return ters
+        return ters,connect
 
     def group_by_residue(self):
         '''
@@ -111,14 +129,32 @@ class simplepdb:
     
     def renumber_atoms(self, start_val=1):
         '''
-        Renumber atoms so they start at 1
+        Renumber atoms so they start at start_val
         '''
+        mapping = {}
         for i in range(self.natoms):
-            self.mol_data['atomnum'][i] = i + start_val
+            old_val = self.mol_data['atomnum'][i]
+            new_val = i + start_val
+            self.mol_data['atomnum'][i] = new_val
+            mapping[old_val] = new_val
+
+        #TODO: ugly
+        new_connect = collections.OrderedDict()
+        for atom,bonds in self.connect.items():
+            if atom in mapping:
+                new_connect[mapping[atom]] = bonds
+        
+        for atom,bonds in new_connect.items():
+            for bond in bonds:
+                if bond in mapping:
+                    idx = bonds.index(bond)
+                    new_connect[atom][idx] = mapping[bond]
+
+        self.connect = new_connect
     
     def renumber_residues(self, start_val=1):
         '''
-        Renumber residues so they start at 1 in "first seen" order, desirable
+        Renumber residues so they start at start_val in "first seen" order, desirable
         when there is a ligand at the end of data with an out-of-order resnum
         '''
         reslist = []
@@ -285,5 +321,14 @@ class simplepdb:
                         f.write('TER\n')
                 start_atom = mol.mol_data['atomnum'][-1]+1
                 start_res = mol.mol_data['resnum'][-1]+1
+
+            for mol in mols:
+                for atom,bonds in mol.connect.items():
+                    f.write('CONECT')
+                    f.write('{:>{}s}'.format(str(atom),util.pdb_connectfields[1]))
+                    for bond in bonds:
+                        f.write('{:>{}s}'.format(str(bond),5)) 
+                    f.write('\n')
+
             f.write('END\n')
 
