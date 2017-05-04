@@ -425,6 +425,8 @@ if __name__ == '__main__':
     for struct,reslist in nonstandard_res.items():
         #track which units you don't have libs for
         orphaned_res = set(reslist)
+        base = util.get_base(struct)
+        
         #try any user-provided locations first
         for user_lib in args.libs:
             for ext in ['.lib','.off','.prep']:
@@ -482,14 +484,14 @@ cofactors\n" % ' '.join(orphaned_res)
             mol2 = base + '.mol2'
             #create a PDB that has unique atom names, hydrogens, all HETATM
             #records, element names, and the correct residue name
-            if not mol_data[struct].has_hydrogen():
+            if not args.noh:
                 mol_data[struct].writepdb(tempname)
                 obabel[tempname, '-O', ligname, '-h']()
                 os.remove(tempname)
                 mol_data[struct] = pdb.simplepdb(ligname)
                 mol_data[struct].sanitize()
                 mol_data[struct].set_recordname('HETATM')
-                os.remove(ligname)
+                os.remove(ligname)                
                 mol_data[struct].writepdb(ligname)
             else:
                 mol_data[struct].writepdb(ligname)
