@@ -324,10 +324,14 @@ class simplepdb:
 
             for mol in mols:
                 for atom,bonds in mol.connect.items():
-                    f.write('CONECT')
-                    f.write('{:>{}s}'.format(str(atom),util.pdb_connectfields[1]))
+                    bonds_seen = 0
                     for bond in bonds:
+                        if not bonds_seen % 4:
+                            if bonds_seen: f.write('\n')
+                            f.write('CONECT')
+                            f.write('{:>{}s}'.format(str(atom),util.pdb_connectfields[1]))
                         f.write('{:>{}s}'.format(str(bond),5)) 
+                        bonds_seen = bonds_seen + 1
                     f.write('\n')
 
             f.write('END\n')
