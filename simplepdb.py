@@ -152,7 +152,7 @@ class simplepdb:
         		occurrences[atom][1] += 1
         		self.mol_data['atomname'][i] += str(occurrences[atom][1])
                 self.mol_data['atomname'][i] = \
-                '{:>{}s}'.format(self.mol_data['atomname'][i],
+                '{:>{}s}'.format(self.mol_data['atomname'][i].title(),
                         util.pdb_fieldwidths[3])
     
     def set_element(self):
@@ -203,15 +203,42 @@ class simplepdb:
         aa = util.get_available_res(ff).intersection(self.mol_data['resname'])
         return len(aa) > 0
 
-    def unique_names(self):
+    def has_unique_names(self):
         '''
         Returns true if atom names are unique
         '''
         #TODO: include resname
+        #TODO: add to tests
         counter = collections.Counter(self.mol_data['atomname'])
         if any(t > 1 for t in counter.values()):
             return False
         return True
+
+    def set_recordname(self, newname, resnum=None):
+        '''
+        Set record name to ATOM or HETATM for residue number resnum or all
+        resnums if no number is provided
+        '''
+        #TODO: add to tests
+        assert newname=='ATOM' or newname=='HETATM', 'Record names must be one \
+        of "ATOM" and "HETATM"'
+        if not resnum:
+            self.mol_data['recordname'] = [newname] * self.natoms
+        else:
+            self.mol_data['recordname'] = [newname for name in
+            self.mol_data['recordname'] if self.mol_data['resnum'] == resnum]
+
+    def set_resname(self, newname, oldname=''):
+        '''
+        Set resname to newname; if oldname is not specified then all resnames
+        are updated to newname, otherwise just oldname is
+        '''
+        #TODO: add to tests
+        if not oldname:
+            self.mol_data['resname'] = [newname] * self.natoms
+        else:
+            self.mol_data['resname'] = [newname for name in
+            self.mol_data['resname'] if name == oldname]
     
     def writepdb(self, fname, end=True, start_atom=1, start_res=1):
         '''
@@ -227,7 +254,15 @@ class simplepdb:
                 for fieldwidth in util.pdb_fieldwidths:
                     if fieldwidth > 0:
                         fieldname = util.pdb_fieldnames[j]
-                        f.write('{:>{}s}'.format(str(self.mol_data[fieldname][i]),fieldwidth))
+                        if fieldname=='x' or fieldname=='y' or fieldname=='z':
+                            output='{:.3f}'.format(self.mol_data[fieldname][i])
+                            f.write('{:>{}s}'.format(str(output),fieldwidth))
+                        elif fieldname=='occupancy' or fieldname=='beta' and \
+                        str(self.mol_data[fieldname][i]).strip():
+                            output='{:.2f}'.format(self.mol_data[fieldname][i])
+                            f.write('{:>{}s}'.format(str(output),fieldwidth))
+                        else:
+                            f.write('{:>{}s}'.format(str(self.mol_data[fieldname][i]),fieldwidth))
                         j += 1
                     else:
                         f.write('{:>{}s}'.format('',abs(fieldwidth)))

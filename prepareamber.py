@@ -23,36 +23,43 @@ def get_cmd(input_str):
     return cmd_dict[ext]
 
 
-def make_amber_parm(fname, base, ff, water_model = '', wat_dist = 0, libs=[], frcmod = ''):
+def make_amber_parm(fname, base, ff, molname='', water_model = '', 
+        wat_dist = 0, libs=[], frcmod = ''):
     '''
     Generate AMBER parameters with tleap
     '''
     inpcrd = base + '.inpcrd'
     prmtop = base + '.prmtop'
+    if not molname: molname = fname[:3].upper()
+
     with open(base + '.tleap', 'w') as leap_input:
         leap_input.write('source ' + ff + '\n' + 
                 'source leaprc.gaff\n')
         for lib in libs:
             leap_input.write(get_cmd(lib) + ' ' + lib + '\n')
-        leap_input.write(base + '=' + get_cmd(fname) + ' ' + fname + '\n')
+        leap_input.write(molname + '=' + get_cmd(fname) + ' ' + fname + '\n')
         if water_model:
             leap_input.write('source ' + water_model + '\n' + 
-                    'solvateoct '+base+' TIP3PBOX ' + str(wat_dist) + '\n' + 
-                    'addions '+base+' Na+ 0\n' + 
-                    'addions '+base+' Cl- 0\n')
+                    'solvateoct '+molname+' TIP3PBOX ' + str(wat_dist) + '\n' + 
+                    'addions '+molname+' Na+ 0\n' + 
+                    'addions '+molname+' Cl- 0\n')
         elif frcmod:
             leap_input.write('loadamberparams '+frcmod+'\n' + 
-                    'saveoff '+base+' '+base+'.lib\n')
-        leap_input.write('saveamberparm ' + base + ' ' + prmtop + ' ' + inpcrd + '\n')
+                    'saveoff '+molname+' '+base+'.lib\n')
+        leap_input.write('saveamberparm ' + molname+ ' ' + prmtop + ' ' + inpcrd + '\n')
         leap_input.write('quit\n')
     tleap['-f', base + '.tleap'] & FG
 
-def do_amber_min_constraint(base):
+def do_amber_min_constraint(fname, base):
     '''
     Do AMBER minimization with protein constraint
     '''
-    numres = (grep['ATOM', base + '.pdb'] | cut['-b', '23-26'] | uniq | wc)()
-    numres = numres.split()[0].strip()
+    try:
+        numres = (grep['ATOM', fname] | cut['-b', '23-26'] | uniq | wc)()
+        numres = numres.split()[0].strip()
+    except Exception as e:
+        if e[1] == 1:
+            numres = 0
     with open(base + '_min1.in', 'w') as min_input:
         min_input.write(base + ': initial minimization solvent + ions\n' + 
             ' &cntrl\n' + 
@@ -100,11 +107,16 @@ def do_amber_min(base):
     print command
     command & FG
 
-def do_amber_warmup(base, temperature):
+def do_amber_warmup(fname, base, temperature):
     '''
     Do AMBER MD to gradually increase system to target temp
     '''
-    numres = (grep['ATOM', base + '.pdb'] | cut['-b', '23-26'] | uniq | wc)()
+    try:
+        numres = (grep['ATOM', fname] | cut['-b', '23-26'] | uniq | wc)()
+        numres = numres.split()[0].strip()
+    except Exception as e:
+        if e[1] == 1:
+            numres = 0
     with open(base + '_md1.in','w') as md_input:
         md_input.write(' &cntrl\n' + 
               '  imin   = 0,\n' + 
@@ -187,16 +199,16 @@ def make_amber_production_input(base, length, keep_velocities, coord_dump_freq):
             '  ioutfm = 1\n' + 
              '/\n')
 
-def do_amber_preproduction(base, args, ff):
+def do_amber_preproduction(fname, base, args, ff):
     '''
     Do minimization with constraints, minimization without constraints, initial
     MD as temperature is raised to target temp, second MD where system is
     equilibrated at constant pressure, and generate input files for production
     run MD but don't run it (becuz it's PREproduction, see?)
     '''
-    do_amber_min_constraint(base)
+    do_amber_min_constraint(fname, base)
     do_amber_min(base)
-    do_amber_warmup(base, args.temperature)
+    do_amber_warmup(fname, base, args.temperature)
     do_amber_constant_pressure(base, args.temperature)
     make_amber_production_input(base, args.prod_length, args.keep_velocities,
             args.coord_dump_freq)
@@ -211,29 +223,27 @@ def do_amber_production(base):
     print command
     command & FG
 
-def do_antechamber(fname, net_charge, ff, molbase = ''):
+def do_antechamber(fname, net_charge, ff, molname, base = ''):
     '''
     Run antechamber and get correctly named versions of the following: mol2
     with bcc charges, frcmod, lib, prmtop, inpcrd
     '''
-    if not molbase: molbase = util.get_base(fname)
+    if not base: base = util.get_base(fname)
     ext = os.path.splitext(fname)[-1]
     ext = ext.lstrip('.')
-    mol2 = molbase + '.mol2'
+    mol2 = base + '.mol2'
     try:
         command = antechamber['-i', fname, '-fi', ext, '-o', mol2, '-fo', 'mol2', '-c',
                 'bcc', '-nc', str(net_charge), '-s', '2']
         print command
         command & FG
     except Exception as e:
-        print 'Antechamber failed due to error {0}: {1}. Check {2} structure. \
-Aborting...\n'.format(e.errno, e.strerror, fname)
+        print 'Antechamber failed. Check {0} structure. Aborting...\n'.format(fname)
         sys.exit()
 
-    os.system("sed -i 's/\<MOL\>/%s/g' %s" % (molbase, mol2))
-    frcmod = molbase + '.frcmod'
+    frcmod = base + '.frcmod'
     parmchk['-i', mol2, '-f', 'mol2', '-o', frcmod]()
-    make_amber_parm(mol2, molbase, ff, frcmod=frcmod)
+    make_amber_parm(mol2, base, ff, molname=molname, frcmod=frcmod)
 
 def set_matches(fname, libs, reslist, orphaned_res, mol, force=False):
     '''
@@ -378,11 +388,14 @@ if __name__ == '__main__':
     
     #if any structure was not provided in PDB format, we will attempt to create
     #one from what was provided using obabel, choosing a filename that will not
-    #overwrite anything in the directory
+    #overwrite anything in the directory (optionally)
     for structure in args.structures:
+        #the "structure" string in the args.structure list will be updated so
+        #that it corresponds to the PDB we should use for subsequent steps
         assert os.path.isfile(structure),'%s does not exist\n' % structure
+        #"base" is the base filename (no extension) from which others will be derived
+        base = util.get_base(structure)
         if os.path.splitext(structure)[-1] != '.pdb':
-            base = util.get_base(structure)
             outpdb = base + '.pdb'
             if not args.overwrite:
                 outpdb = util.get_fname(outpdb)
@@ -397,7 +410,7 @@ if __name__ == '__main__':
             structure = outpdb
         mol_res = {}
         mol_data[structure] = pdb.simplepdb(structure)
-        if not mol_data[structure].unique_names() and not mol_data[structure].is_protein():
+        if not mol_data[structure].has_unique_names() and not mol_data[structure].is_protein():
             mol_data[structure].rename_atoms()
         mol_res[structure] = set(mol_data[structure].mol_data['resname'])
         nonstandard_res[structure] = list(mol_res[structure] - standard_res)
@@ -417,10 +430,9 @@ if __name__ == '__main__':
             for ext in ['.lib','.off','.prep']:
                 fname = userlib + ext
                 if os.path.isfile(fname):
-                    #TODO: allow the user to redefine things with a warning
                     set_matches(fname, libs, reslist, orphaned_res,
                             mol_data[struct], True)
-        #if necessary, check the current directory too
+        #if residues are still undefined, check the current directory too
         if orphaned_res:
             local_libs = [name for name in glob.glob('*.lib') +
                     glob.glob('*.off') + glob.glob('*.prep')]
@@ -437,7 +449,7 @@ if __name__ == '__main__':
 cofactors\n" % ' '.join(orphaned_res)
 
         if is_protein and not args.noh: 
-            fname = util.get_base(struct) + '_amber.pdb'
+            fname = base + '_amber.pdb'
             pdb4amber['-y', '-i', struct, '-o', fname] & FG
             idx = args.structures.index(struct)
             args.structures[idx] = fname
@@ -451,56 +463,66 @@ cofactors\n" % ' '.join(orphaned_res)
         #if we're handling a ligand and don't have library files, we will need at 
         #least the pdb-formatted data and a mol2 from which we can derive gasteiger 
         #charges for antechamber; make these with babel and find the net charge
-        #TODO: fix molname/filename issues 
         if orphaned_res:
+            #"molname" will be the name of the unit for AMBER
+            #TODO: check whether, if there are multiple ligands to be fit in
+            #antechamber, the user has provided unit names for all of them or
+            #they have distinct residue names 
             try:
-                molname = util.get_molname(next(lig_iter)[:3].upper())
+                molname = next(lig_iter)[:3].upper()
             except StopIteration:
-                molname = util.get_molname('LIG')
+                molname = list(orphaned_res)[0]
             mol_data[struct].sanitize()
-            tempname = util.get_base(struct) + '_temp.pdb'
-            ligname = util.get_base(struct) + '_amber.pdb'
+            mol_data[struct].set_resname(molname)
+            tempname = base + '_temp.pdb'
+            ligname = base + '_amber.pdb'
             if not args.overwrite:
                 tempname = util.get_fname(tempname)
                 ligname = util.get_fname(ligname)
-            mol2 = os.path.splitext(ligname)[0] + '.mol2'
+            mol2 = base + '.mol2'
+            #create a PDB that has unique atom names, hydrogens, all HETATM
+            #records, element names, and the correct residue name
             if not mol_data[struct].has_hydrogen():
                 mol_data[struct].writepdb(tempname)
                 obabel[tempname, '-O', ligname, '-h']()
                 os.remove(tempname)
                 mol_data[struct] = pdb.simplepdb(ligname)
                 mol_data[struct].sanitize()
+                mol_data[struct].set_recordname('HETATM')
                 os.remove(ligname)
                 mol_data[struct].writepdb(ligname)
             else:
                 mol_data[struct].writepdb(ligname)
-            obabel[ligname, '-O', mol2]()
-            net_charge = util.get_charge(mol2)
-            resname = list(orphaned_res)[0]
-            os.system("sed -i 's/\<%s\>/%s/g' %s" % (resname, molname, ligname))
-            print 'Parametrizing unit %s with antechamber.\n' % ' '.join(orphaned_res)
-            mol_data[struct].mol_data['resname'] = [molname for i in
-                    range(mol_data[struct].natoms)]
-            do_antechamber(ligname, net_charge, ff, molname)
-            libs.add(molname + '.lib')
-            libs.add(molname + '.frcmod')
             idx = args.structures.index(struct)
             args.structures[idx] = ligname
+            #get gasteiger charges
+            obabel[ligname, '-O', mol2]()
+            net_charge = util.get_charge(mol2)
+            #run antechamber
+            print 'Parametrizing unit %s with antechamber.\n' % ' '.join(orphaned_res)
+            do_antechamber(ligname, net_charge, ff, molname, base)
+            #add the libraries created in the last step to the libs list
+            libs.add(base + '.lib')
+            libs.add(base + '.frcmod')
 
-    #TODO: reorder mol_data so that protein structures come first (and are
-    #therefore written to file first)
     #ok, now we can be pretty sure we know what to do and that we are able to do it
+    #create complex if there are multiple structures
     if len(args.structures) > 1:
         complex_name = args.out_name + '.pdb'
         start_atom, start_res = 1,1
+        if os.path.isfile(complex_name):
+            os.remove(complex_name)
         for i,mol in enumerate(mol_data.values()):
             start_atom, start_res = mol.writepdb(complex_name, i ==
                     len(mol_data.values())-1, start_atom, start_res)
         base = util.get_base(complex_name)
+    #if only one structure, just use the files output in the steps above
     else:
         complex_name = args.structures[0]
         base = util.get_base(complex_name)
-        base = base.split('_')[0]
-    make_amber_parm(complex_name, base, ff, args.water_model, args.water_dist, libs)
-    if not args.parm_only: do_amber_preproduction(base, args, ff)
+    #make initial parameters files
+    make_amber_parm(complex_name, base, ff, 'complex', args.water_model, args.water_dist, libs)
+    #run the two minimization and two pre-production  MDs
+    if not args.parm_only: do_amber_preproduction(complex_name, base, args, ff)
+    #run the final production MD
     if args.run_prod_md: do_amber_production(base)
