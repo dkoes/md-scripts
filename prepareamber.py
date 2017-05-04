@@ -235,11 +235,16 @@ def do_antechamber(fname, net_charge, ff, molname, base = ''):
     try:
         command = antechamber['-i', fname, '-fi', ext, '-o', mol2, '-fo', 'mol2', '-c',
                 'bcc', '-nc', str(net_charge), '-s', '2']
-        print command
-        command & FG
+        command()
     except Exception as e:
-        print 'Antechamber failed. Check {0} structure. Aborting...\n'.format(fname)
-        sys.exit()
+        try:
+            net_charge = -1
+            command = antechamber['-i', fname, '-fi', ext, '-o', mol2, '-fo', 'mol2', '-c',
+                    'bcc', '-nc', str(net_charge), '-s', '2']
+            command()
+        except Exception as e:
+            print 'Antechamber failed. Check {0} structure. Aborting...\n'.format(fname)
+            sys.exit()
 
     frcmod = base + '.frcmod'
     parmchk['-i', mol2, '-f', 'mol2', '-o', frcmod]()
