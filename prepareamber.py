@@ -231,7 +231,7 @@ def do_antechamber(fname, net_charge, ff, molname, base = ''):
     if not base: base = util.get_base(fname)
     ext = os.path.splitext(fname)[-1]
     ext = ext.lstrip('.')
-    mol2 = base + '.mol2'
+    mol2 = base + '_amber.mol2'
     try:
         command = antechamber['-i', fname, '-fi', ext, '-o', mol2, '-fo', 'mol2', '-c',
                 'bcc', '-nc', str(net_charge), '-s', '2']
@@ -425,6 +425,7 @@ if __name__ == '__main__':
     for struct,reslist in nonstandard_res.items():
         #track which units you don't have libs for
         orphaned_res = set(reslist)
+        base = util.get_base(struct)
         #try any user-provided locations first
         for user_lib in args.libs:
             for ext in ['.lib','.off','.prep']:
@@ -455,7 +456,7 @@ cofactors\n" % ' '.join(orphaned_res)
             args.structures[idx] = fname
             if not args.uninteractive:
                 raw_input('Read the above messages and then press any key to continue...\n')
-            mol_data[struct] = pdb.simplepdb(fname)
+            mol_data[fname] = pdb.simplepdb(fname)
 
         assert len(orphaned_res)<2, "%s has multiple ligands; break them into \
         separate files to process with antechamber\n" % struct
@@ -479,10 +480,12 @@ cofactors\n" % ' '.join(orphaned_res)
             if not args.overwrite:
                 tempname = util.get_fname(tempname)
                 ligname = util.get_fname(ligname)
-            mol2 = base + '.mol2'
+            if os.path.isfile(ligname):
+                os.remove(ligname)
+            mol2 = base + '_amber.mol2'
             #create a PDB that has unique atom names, hydrogens, all HETATM
             #records, element names, and the correct residue name
-            if not mol_data[struct].has_hydrogen():
+            if not args.noh:
                 mol_data[struct].writepdb(tempname)
                 obabel[tempname, '-O', ligname, '-h']()
                 os.remove(tempname)
@@ -495,6 +498,7 @@ cofactors\n" % ' '.join(orphaned_res)
                 mol_data[struct].writepdb(ligname)
             idx = args.structures.index(struct)
             args.structures[idx] = ligname
+            mol_data[ligname] = mol_data[struct]
             #get gasteiger charges
             obabel[ligname, '-O', mol2]()
             net_charge = util.get_charge(mol2)
@@ -512,14 +516,13 @@ cofactors\n" % ' '.join(orphaned_res)
         start_atom, start_res = 1,1
         if os.path.isfile(complex_name):
             os.remove(complex_name)
-        for i,mol in enumerate(mol_data.values()):
-            start_atom, start_res = mol.writepdb(complex_name, i ==
-                    len(mol_data.values())-1, start_atom, start_res)
-        base = util.get_base(complex_name)
+        print args.structures
+        print mol_data
+        mol_data[args.structures[0]].writepdb(complex_name, mol_data.values())
     #if only one structure, just use the files output in the steps above
     else:
         complex_name = args.structures[0]
-        base = util.get_base(complex_name)
+    base = util.get_base(complex_name)
     #make initial parameters files
     make_amber_parm(complex_name, base, ff, 'complex', args.water_model, args.water_dist, libs)
     #run the two minimization and two pre-production  MDs

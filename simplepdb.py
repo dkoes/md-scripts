@@ -139,6 +139,8 @@ class simplepdb:
         '''
         Generate unique atom names
         '''
+        if self.has_unique_names():
+            return
         for i,name in enumerate(self.mol_data['atomname']):
         	self.mol_data['atomname'][i] = ''.join([char.upper() for char in
                     self.mol_data['atomname'][i] if char.isalpha()])
@@ -207,9 +209,12 @@ class simplepdb:
         '''
         Returns true if atom names are unique
         '''
-        #TODO: include resname
         #TODO: add to tests
-        counter = collections.Counter(self.mol_data['atomname'])
+        atom_ids = []
+        for i in range(self.natoms):
+            atom_ids.append(str(self.mol_data['resnum'][i]) +
+                    self.mol_data['atomname'][i])
+        counter = collections.Counter(atom_ids)
         if any(t > 1 for t in counter.values()):
             return False
         return True
@@ -239,39 +244,46 @@ class simplepdb:
         else:
             self.mol_data['resname'] = [newname for name in
             self.mol_data['resname'] if name == oldname]
-    
-    def writepdb(self, fname, end=True, start_atom=1, start_res=1):
+
+    def writepdb(self, fname, mols=[]):
         '''
-        Write molecule data to a file; takes filename, whether an END record
-        should be written, and the indices from which the atoms and residues
-        should be numbered
+        Write molecule data to a file; takes filename and a list of mols to be
+        written. If no list is provided, just the calling molecule is written,
+        otherwise only the molecules in the list are written. 
         '''
-        self.renumber_atoms(start_atom)
-        self.renumber_residues(start_res)
-        with open(fname, 'a') as f:
-            for i in range(self.natoms):
-                j = 0
-                for fieldwidth in util.pdb_fieldwidths:
-                    if fieldwidth > 0:
-                        fieldname = util.pdb_fieldnames[j]
-                        if fieldname=='x' or fieldname=='y' or fieldname=='z':
-                            output='{:.3f}'.format(self.mol_data[fieldname][i])
-                            f.write('{:>{}s}'.format(str(output),fieldwidth))
-                        elif fieldname=='occupancy' or fieldname=='beta' and \
-                        str(self.mol_data[fieldname][i]).strip():
-                            output='{:.2f}'.format(self.mol_data[fieldname][i])
-                            f.write('{:>{}s}'.format(str(output),fieldwidth))
+        if not mols:
+            mols = [self]
+
+        with open(fname, 'w') as f:
+            start_atom = 1
+            start_res = 1
+            for mol in mols:
+                mol.renumber_atoms(start_atom)
+                mol.renumber_residues(start_res)
+                for i in range(mol.natoms):
+                    j = 0
+                    for fieldwidth in util.pdb_fieldwidths:
+                        if fieldwidth > 0:
+                            fieldname = util.pdb_fieldnames[j]
+                            if fieldname=='x' or fieldname=='y' or fieldname=='z':
+                                output='{:.3f}'.format(mol.mol_data[fieldname][i])
+                                f.write('{:>{}s}'.format(str(output),fieldwidth))
+                            elif fieldname=='occupancy' or fieldname=='beta' and \
+                            str(mol.mol_data[fieldname][i]).strip():
+                                output='{:.2f}'.format(mol.mol_data[fieldname][i])
+                                f.write('{:>{}s}'.format(str(output),fieldwidth))
+                            else:
+                                f.write('{:>{}s}'.format(str(mol.mol_data[fieldname][i]),fieldwidth))
+                            j += 1
                         else:
-                            f.write('{:>{}s}'.format(str(self.mol_data[fieldname][i]),fieldwidth))
-                        j += 1
-                    else:
-                        f.write('{:>{}s}'.format('',abs(fieldwidth)))
-                f.write('\n')
-                if (i == self.natoms-1):
-                    f.write('TER\n')
-                elif (self.mol_data['resnum'][i] in self.ters and
-                self.mol_data['resnum'][i] != self.mol_data['resnum'][i+1]):
-                    f.write('TER\n')
-            if end==True: f.write('END\n')
-        return (self.mol_data['atomnum'][-1]+1, self.mol_data['resnum'][-1]+1)
+                            f.write('{:>{}s}'.format('',abs(fieldwidth)))
+                    f.write('\n')
+                    if (i == mol.natoms-1):
+                        f.write('TER\n')
+                    elif (mol.mol_data['resnum'][i] in mol.ters and
+                    mol.mol_data['resnum'][i] != mol.mol_data['resnum'][i+1]):
+                        f.write('TER\n')
+                start_atom = mol.mol_data['atomnum'][-1]+1
+                start_res = mol.mol_data['resnum'][-1]+1
+            f.write('END\n')
 
