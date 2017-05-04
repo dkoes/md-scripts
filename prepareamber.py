@@ -272,8 +272,9 @@ def set_matches(fname, libs, reslist, orphaned_res, mol, force=False):
                     else:
                         atomcopy = False
                 elif atomcopy:
-                    libatoms.append(line.strip().strip('"'))
-    if set(libatoms) != set(mol.mol_data['atomname']) or ext == 'prep' and not force:
+                    libatoms.append(line.split()[0].strip('"'))
+    if set(libatoms) != set([name.strip() for name in \
+        mol.mol_data['atomname']]) or ext == 'prep' and not force:
         matches = set([])
     if matches:
         #redefine a unit iff found in a user-provided lib, but warn the user about the
@@ -290,7 +291,7 @@ def set_matches(fname, libs, reslist, orphaned_res, mol, force=False):
             libs.add(fname)
             frcmod = util.get_base(fname) + '.frcmod'
             if os.path.isfile(frcmod):
-                lib.add(frcmod)
+                libs.add(frcmod)
             orphaned_res -= matches
 
 if __name__ == '__main__':
@@ -434,7 +435,7 @@ if __name__ == '__main__':
         #try any user-provided locations first
         for user_lib in args.libs:
             for ext in ['.lib','.off','.prep']:
-                fname = userlib + ext
+                fname = user_lib + ext
                 if os.path.isfile(fname):
                     set_matches(fname, libs, reslist, orphaned_res,
                             mol_data[struct], True)
