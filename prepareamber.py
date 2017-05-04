@@ -492,7 +492,7 @@ cofactors\n" % ' '.join(orphaned_res)
                 mol_data[struct] = pdb.simplepdb(ligname)
                 mol_data[struct].sanitize()
                 mol_data[struct].set_recordname('HETATM')
-                os.remove(ligname)                
+                os.remove(ligname)
                 mol_data[struct].writepdb(ligname)
             else:
                 mol_data[struct].writepdb(ligname)
@@ -516,9 +516,8 @@ cofactors\n" % ' '.join(orphaned_res)
         start_atom, start_res = 1,1
         if os.path.isfile(complex_name):
             os.remove(complex_name)
-        print args.structures
-        print mol_data
-        mol_data[args.structures[0]].writepdb(complex_name, mol_data.values())
+        final_mols = [mol_data[file] for file in args.structures]
+        mol_data[args.structures[0]].writepdb(complex_name, final_mols)
     #if only one structure, just use the files output in the steps above
     else:
         complex_name = args.structures[0]
