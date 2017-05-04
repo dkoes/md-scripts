@@ -492,7 +492,7 @@ cofactors\n" % ' '.join(orphaned_res)
                 mol_data[struct] = pdb.simplepdb(ligname)
                 mol_data[struct].sanitize()
                 mol_data[struct].set_recordname('HETATM')
-                os.remove(ligname)
+                os.remove(ligname)                
                 mol_data[struct].writepdb(ligname)
             else:
                 mol_data[struct].writepdb(ligname)
