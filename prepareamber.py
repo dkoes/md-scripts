@@ -177,25 +177,25 @@ def do_amber_constant_pressure(base, temp):
     print command
     command & FG
 
-def make_amber_production_input(base, length, keep_velocities, coord_dump_freq):
+def make_amber_production_input(base, args):
     '''
     Make input files for production run AMBER MD; length is in nanoseconds
     '''
-    nstlim = float(length) / .000002
-    irest = int(keep_velocities)
-    ntx = 7 if keep_velocities else 1
+    nstlim = int(float(args.prod_length) / .000002)
+    irest = int(args.keep_velocities)
+    ntx = 7 if args.keep_velocities else 1
     with open(base + '_md3.in','w') as md_input:
-        md_input.write(base + ': ' + str(length) + 'ns MD\n' + 
+        md_input.write(base + ': ' + str(args.prod_length) + 'ns MD\n' + 
             ' &cntrl\n' + 
             '  imin = 0, irest = '+str(irest)+', ntx = '+str(ntx)+',\n' + 
             '  ntb = 2, pres0 = 1.0, ntp = 1,\n' + 
             '  taup = 2.0,\n' + 
             '  cut = 10.0, ntr = 0,\n' + 
             '  ntc = 2, ntf = 2,\n' + 
-            '  tempi = $temp, temp0 = $temp,\n' + 
+            '  tempi = {0}, temp0 = {0},\n'.format(args.temperature) + 
             '  ntt = 3, gamma_ln = 1.0,\n' + 
             '  nstlim = '+str(nstlim)+', dt = 0.002, ntxo = 2,\n' + 
-            '  ntpr = 5000, ntwx = '+str(coord_dump_freq)+', ntwr = 500000,\n' + 
+            '  ntpr = 5000, ntwx = '+str(args.coord_dump_freq)+', ntwr = 500000,\n' + 
             '  ioutfm = 1\n' + 
              '/\n')
 
@@ -210,8 +210,7 @@ def do_amber_preproduction(fname, base, args, ff):
     do_amber_min(base)
     do_amber_warmup(fname, base, args.temperature)
     do_amber_constant_pressure(base, args.temperature)
-    make_amber_production_input(base, args.prod_length, args.keep_velocities,
-            args.coord_dump_freq)
+    make_amber_production_input(base, args)
 
 def do_amber_production(base):
     '''
