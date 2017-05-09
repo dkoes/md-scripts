@@ -303,9 +303,8 @@ if __name__ == '__main__':
     for which you want to run a simulation. N.B. if more than one is provided \
     they will be simulated together.')
 
-    parser.add_argument('-n', '--out_name', default='complex',
-    help='Optionally provide a filename for the created complex; only \
-    used if you provide more than one structure. Default is "complex."')
+    parser.add_argument('-n', '--out_name', 
+    help='Optionally provide a filename prefix for the output.  For multi-structure inputs, default is "complex."')
 
     parser.add_argument('-p', '--libs', nargs='+', required=False, help="Optionally specify \
     a prefix for nonstandard residue library files; this can include their path if they aren't \
@@ -516,16 +515,20 @@ cofactors\n" % ' '.join(orphaned_res)
 
     #ok, now we can be pretty sure we know what to do and that we are able to do it
     #create complex if there are multiple structures
+    if arg.out_name:
+       complex_name = args.out_name + '.pdb'
+    elif len(args.structres) > 1:
+       complex_name = 'complex'
+    else:
+       complex_name = args.structures[0]
+
     if len(args.structures) > 1:
-        complex_name = args.out_name + '.pdb'
         start_atom, start_res = 1,1
         if os.path.isfile(complex_name):
             os.remove(complex_name)
         final_mols = [mol_data[file] for file in args.structures]
         mol_data[args.structures[0]].writepdb(complex_name, final_mols)
-    #if only one structure, just use the files output in the steps above
-    else:
-        complex_name = args.structures[0]
+    
     base = util.get_base(complex_name)
     #make initial parameters files
     make_amber_parm(complex_name, base, ff, 'complex', args.water_model, args.water_dist, libs)
