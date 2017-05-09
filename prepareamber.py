@@ -515,7 +515,7 @@ cofactors\n" % ' '.join(orphaned_res)
 
     #ok, now we can be pretty sure we know what to do and that we are able to do it
     #create complex if there are multiple structures
-    if arg.out_name:
+    if args.out_name:
        complex_name = args.out_name + '.pdb'
     elif len(args.structres) > 1:
        complex_name = 'complex'
@@ -528,7 +528,8 @@ cofactors\n" % ' '.join(orphaned_res)
             os.remove(complex_name)
         final_mols = [mol_data[file] for file in args.structures]
         mol_data[args.structures[0]].writepdb(complex_name, final_mols)
-    
+    elif complex_name != args.structures[0]:
+        mol_data[args.structures[0]].writepdb(complex_name)    
     base = util.get_base(complex_name)
     #make initial parameters files
     make_amber_parm(complex_name, base, ff, 'complex', args.water_model, args.water_dist, libs)
