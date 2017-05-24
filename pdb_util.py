@@ -88,7 +88,10 @@ def get_libs(ff):
     '''
     libs = []
     with open(ff, 'r') as f:
-        path = os.path.dirname(os.path.dirname(os.path.realpath(f.name)))+'/lib/'
+        if 'oldff' in os.path.realpath(f.name): #back up 3x
+            path = os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(f.name))))+'/lib/'
+        else: #backup 2x
+            path = os.path.dirname(os.path.dirname(os.path.realpath(f.name)))+'/lib/'
         for line in f:
             if line.startswith('loadOff'):
                 libs.append(path + line.split()[-1])
