@@ -377,6 +377,8 @@ if __name__ == '__main__':
             ff = amberhome + '/dat/leap/cmd/leaprc.protein.' + args.force_field            
         elif os.path.isfile(amberhome + '/dat/leap/cmd/oldff/' + args.force_field):
             ff = amberhome + '/dat/leap/cmd/oldff/' + args.force_field
+        elif os.path.isfile(amberhome + '/dat/leap/cmd/oldff/leaprc.' + args.force_field):
+            ff = amberhome + '/dat/leap/cmd/oldff/leaprc.' + args.force_field            
         else:
             print "Warning: force field not found! This is likely to cause \
                 problems later.\n"
