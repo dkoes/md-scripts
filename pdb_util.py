@@ -165,7 +165,7 @@ def get_available_res(ff=''):
     #amino acid residues that leap should recognize with a standard protein force
     #field, plus water
     return set(['ALA', 'GLY', 'SER', 'THR', 'LEU', 'ILE', 'VAL', 'ASN', 'GLN',
-        'ARG', 'HID', 'HIE','HIP', 'TRP', 'PHE', 'TYR', 'GLU', 'ASP', 'LYS', 
+        'ARG', 'HID', 'HIE','HIS','HIP', 'TRP', 'PHE', 'TYR', 'GLU', 'ASP', 'LYS', 
         'LYN', 'PRO', 'CYS', 'CYX', 'MET', 'ASH', 'GLH', 'CYM', 'HYP', 'NALA', 
         'NGLY', 'NSER', 'NTHR', 'NLEU', 'NILE', 'NVAL', 'NASN', 'NGLN', 'NARG', 
         'NHID', 'NHIE', 'NHIP', 'NTRP', 'NPHE', 'NTYR', 'NGLU', 'NASP', 'NLYS', 

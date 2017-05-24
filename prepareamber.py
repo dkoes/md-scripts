@@ -373,15 +373,15 @@ if __name__ == '__main__':
     else:
         if os.path.isfile(amberhome + '/dat/leap/cmd/' + args.force_field):
             ff = amberhome + '/dat/leap/cmd/' + args.force_field
-        if os.path.isfile(amberhome + '/dat/leap/cmd/leaprc.protein.' + args.force_field):
+        elif os.path.isfile(amberhome + '/dat/leap/cmd/leaprc.protein.' + args.force_field):
             ff = amberhome + '/dat/leap/cmd/leaprc.protein.' + args.force_field            
         elif os.path.isfile(amberhome + '/dat/leap/cmd/oldff/' + args.force_field):
             ff = amberhome + '/dat/leap/cmd/oldff/' + args.force_field
         elif os.path.isfile(amberhome + '/dat/leap/cmd/oldff/leaprc.' + args.force_field):
             ff = amberhome + '/dat/leap/cmd/oldff/leaprc.' + args.force_field            
         else:
-            print "Warning: force field not found! This is likely to cause \
-                problems later.\n"
+            print "Warning: force field %s not found in %s! This is likely to cause \
+                problems later.\n"%(args.force_field,amberhome)
 
     #Find out which water model we're using
     if args.water_model == 'opc':
