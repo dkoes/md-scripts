@@ -523,7 +523,7 @@ cofactors\n" % ' '.join(orphaned_res)
     #create complex if there are multiple structures
     if args.out_name:
        complex_name = args.out_name + '.pdb'
-    elif len(args.structres) > 1:
+    elif len(args.structures) > 1:
        complex_name = 'complex'
     else:
        complex_name = args.structures[0]

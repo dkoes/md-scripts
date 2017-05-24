@@ -1,5 +1,5 @@
 #!/usr/bin/python
-import os
+import os, re
 from itertools import izip_longest
 
 #Basic utilities used by simplepdb or prepareamber that are generally useful and
@@ -161,7 +161,13 @@ def get_available_res(ff=''):
         for lib in libs:
             units += get_units(lib)
         units += ['WAT', 'HOH']
-        return set(units)
+        units = set(units)
+        with open(ff, 'r') as f:
+            for line in f: # look for aliased residues
+                m = re.search(r'(\S+)\s*=\s*(\S+)', line)
+                if m and m.group(2) in units:
+                    units.add(m.group(1))
+        return units
     #amino acid residues that leap should recognize with a standard protein force
     #field, plus water
     return set(['ALA', 'GLY', 'SER', 'THR', 'LEU', 'ILE', 'VAL', 'ASN', 'GLN',
