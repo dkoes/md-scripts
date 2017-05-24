@@ -321,7 +321,7 @@ if __name__ == '__main__':
             Defaults to TIP3P.')
 
     parser.add_argument('-ff', '--force_field', default='leaprc.protein.ff15ipq',
-            help='Force field; defaults to ff15ipq.')
+            help='Force field; defaults to leaprc.protein.ff15ipq.')
 
     parser.add_argument('-t', '--temperature', default=300, help='Simulation \
     temperature; defaults to 300K.')
@@ -373,8 +373,11 @@ if __name__ == '__main__':
         later.\n"
     else:
         if not os.path.isfile(amberhome + '/dat/leap/cmd/' + args.force_field):
-            print "Warning: force field not found! This is likely to cause \
-            problems later.\n"
+            if not os.path.isfile(amberhome + '/dat/leap/cmd/oldff/' + args.force_field):
+                print "Warning: force field not found! This is likely to cause \
+                problems later.\n"
+            else: # in oldff
+                ff = amberhome + '/dat/leap/cmd/oldff/' + args.force_field
         else:
             ff = amberhome + '/dat/leap/cmd/' + args.force_field
 
