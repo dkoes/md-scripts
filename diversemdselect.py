@@ -18,7 +18,7 @@ def compute_cluster_sizes(current, model, selection):
 		minr = float('infinity')
 		closest = 0
 		for (pos,(refframe, refcoords)) in enumerate(current):
-			r = rmsd(refcoords, selection.coordinates())			
+			r = rmsd(refcoords, selection.positions)			
 			if r < minr:
 				minr = r
 				closest = pos
@@ -38,13 +38,13 @@ def add_next_farthest(current, model, selection):
 		frame = ts.frame
 		minr = float('infinity')
 		for (refframe, refcoords) in current:
-			r = rmsd(refcoords, selection.coordinates())			
+			r = rmsd(refcoords, selection.positions)			
 			if r < minr:
 				minr = r
 		if minr > maxr:
 			maxframe = frame
 			maxr = minr
-			maxcoords = selection.coordinates()
+			maxcoords = selection.positions
 	
 	current.append( (maxframe, maxcoords) )
 
@@ -59,7 +59,7 @@ args = parser.parse_args()
 model = MDAnalysis.Universe(args.topology,args.trajectory)
 selection = model.select_atoms(args.selection)
 
-current = [(0, selection.coordinates())]
+current = [(0, selection.positions)]
 
 for i in xrange(args.size-1):
 	add_next_farthest(current, model, selection)
