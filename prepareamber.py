@@ -524,7 +524,7 @@ cofactors\n" % ' '.join(orphaned_res)
     if args.out_name:
        complex_name = args.out_name + '.pdb'
     elif len(args.structures) > 1:
-       complex_name = 'complex'
+       complex_name = 'complex.pdb'
     else:
        complex_name = args.structures[0]
 
