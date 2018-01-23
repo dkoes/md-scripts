@@ -6,23 +6,38 @@ from os.path import splitext
 from MDAnalysis.analysis.rms import *
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 import seaborn as sns
-top = sys.argv[1]
-traj = sys.argv[2]
+import argparse
+
+parser = argparse.ArgumentParser(description='Generate pairwise RMSD heatmap plot.\nIMPORTANT: assumes an aligned input')
+parser.add_argument("topology")
+parser.add_argument("trajectory")
+parser.add_argument("--selection",default="backbone",help="MDAnalysis selection for computing RMSD",required=False)
+parser.add_argument("--step",default=10, type=int, required=False,help="Frames to skip over")
+parser.add_argument('--title',help="Graph title")
+parser.add_argument('-o','--output',type=str,help="Output filename")
+parser.add_argument('--max',type=float,help='Max RMSD value to consider',default=None)
+args = parser.parse_args()
+
+top = args.topology
+traj = args.trajectory
+
+base = splitext(top)[0]
+if not args.title:
+    args.title = base
+    
+if not args.output:
+    args.output = base+'.png'
+    
 u1 = MDAnalysis.Universe(top,traj)
 u2 = MDAnalysis.Universe(top,traj)
 
 # arguments: topology, trajector, [selection], [graph title], [step]
 # todo, switch to argparse
-sel = "backbone"
-if len(sys.argv) > 3:
-    sel = sys.argv[3]
+sel = args.selection
 
 n = u1.trajectory.n_frames
 
-if len(sys.argv) > 5:
-    div = int(sys.argv[5])
-else:
-    div = 10
+div = args.step
 rmat = np.zeros((n/div,n/div))
 
 sel1 = u1.select_atoms(sel)
@@ -45,24 +60,21 @@ print "Frame %d is within %.2f of %d frames" % (pos, cutoff, cnts[pos])
 import matplotlib.pylab as plt
 
 plt.figure()
-
-if len(sys.argv) > 4:
-    name = sys.argv[4]
-else:
-    name = splitext(sys.argv[1])[0] 
-plt.title(name)
+plt.title(args.title)
 
 #multiples of 10, but no more than 6ish ticks
 n = 10
 while len(rmat)/n > 6:
     n += 10
-print n
 
-sns.heatmap(rmat,square=True,xticklabels=n,yticklabels=n,cmap='YlGnBu',cbar_kws={'label':'RMSD'})
+if args.max:
+    sns.heatmap(rmat,square=True,xticklabels=n,yticklabels=n,cmap='YlGnBu',cbar_kws={'label':'RMSD'},vmin=0,vmax=args.max)
+else:
+    sns.heatmap(rmat,square=True,xticklabels=n,yticklabels=n,cmap='YlGnBu',cbar_kws={'label':'RMSD'},vmin=0)
 plt.xlabel("Frame #")
 plt.ylabel("Frame #")
 ax = plt.gca()
 ax.tick_params(direction='out')
 plt.tight_layout()
 
-plt.savefig(name + '.png')
+plt.savefig(args.output)

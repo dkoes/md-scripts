@@ -24,7 +24,7 @@ def get_cmd(input_str):
 
 
 def make_amber_parm(fname, base, ff, molname='', water_model = '', 
-        wat_dist = 0, libs=[], frcmod = ''):
+        wat_dist = 0, libs=[], frcmod = '', extra=None):
     '''
     Generate AMBER parameters with tleap
     '''
@@ -38,6 +38,12 @@ def make_amber_parm(fname, base, ff, molname='', water_model = '',
         for lib in libs:
             leap_input.write(get_cmd(lib) + ' ' + lib + '\n')
         leap_input.write(molname + '=' + get_cmd(fname) + ' ' + fname + '\n')
+        
+        if extra: 
+            extracmds = open(extra).read()
+            extracmds = extracmds.replace('MOLNAME',molname)
+            print extracmds
+            leap_input.write(extracmds)
         if water_model:
             leap_input.write('source ' + water_model + '\n' + 
                     'solvateoct '+molname+' TIP3PBOX ' + str(wat_dist) + '\n' + 
@@ -272,8 +278,8 @@ def set_matches(fname, libs, reslist, orphaned_res, mol, force=False):
                         atomcopy = False
                 elif atomcopy:
                     libatoms.append(line.split()[0].strip('"'))
-    if set(libatoms) != set([name.strip() for name in \
-        mol.mol_data['atomname']]) or ext == 'prep' and not force:
+    molatoms = set([name.strip() for name in mol.mol_data['atomname']])
+    if not set(libatoms).issubset(molatoms) or ext == 'prep' and not force:            
         matches = set([])
     if matches:
         #redefine a unit iff found in a user-provided lib, but warn the user about the
@@ -281,7 +287,7 @@ def set_matches(fname, libs, reslist, orphaned_res, mol, force=False):
         if not matches.intersection(orphaned_res) and not force:
             print 'Unit %s found in %s defined previously, \
             skipping to avoid redefinition\n' % (' '.join(match for match in
-                matches), fname)
+                matches), fname)                
         else:
             if not matches.intersection(orphaned_res):
                 print 'Unit %s found in %s defined previously, \
@@ -357,6 +363,8 @@ if __name__ == '__main__':
     parser.add_argument('-df', '--coord_dump_freq', default=5000,
     help='Frequency for dumping coordinates to traj_file. Defaults to 5000. \
     The old script referred to this as the "timestep."')
+    
+    parser.add_argument('--extra', help="File with additional leap commands to apply")
 
     #TODO: add extra tleap arg passing
     #TODO: generate PBS file
@@ -459,7 +467,9 @@ if __name__ == '__main__':
         "Undefined units %s in protein - check for modified residues, ions, or \
 cofactors\n" % ' '.join(orphaned_res)
 
-        if is_protein and not args.noh: 
+        if is_protein and reslist:
+            print "NOT RUNNING pdb4amber due to presence of modified residues."
+        elif is_protein and not args.noh: 
             fname = base + '_amber.pdb'
             pdb4amber['-y', '-i', struct, '-o', fname] & FG
             idx = args.structures.index(struct)
@@ -479,10 +489,7 @@ cofactors\n" % ' '.join(orphaned_res)
             #TODO: check whether, if there are multiple ligands to be fit in
             #antechamber, the user has provided unit names for all of them or
             #they have distinct residue names 
-            try:
-                molname = next(lig_iter)[:3].upper()
-            except StopIteration:
-                molname = list(orphaned_res)[0]
+            molname = base
             mol_data[struct].sanitize()
             mol_data[struct].set_resname(molname)
             tempname = base + '_temp.pdb'
@@ -519,6 +526,11 @@ cofactors\n" % ' '.join(orphaned_res)
             libs.add(base + '.lib')
             libs.add(base + '.frcmod')
 
+    #always add requeted frcmod files as they may apply to multiple ligands
+    for lib in args.libs:
+        if os.path.isfile(lib+'.frcmod'):
+            libs.add(lib+'.frcmod')
+            
     #ok, now we can be pretty sure we know what to do and that we are able to do it
     #create complex if there are multiple structures
     if args.out_name:
@@ -538,7 +550,7 @@ cofactors\n" % ' '.join(orphaned_res)
         mol_data[args.structures[0]].writepdb(complex_name)    
     base = util.get_base(complex_name)
     #make initial parameters files
-    make_amber_parm(complex_name, base, ff, 'complex', args.water_model, args.water_dist, libs)
+    make_amber_parm(complex_name, base, ff, 'complex', args.water_model, args.water_dist, libs, extra=args.extra)
     #run the two minimization and two pre-production  MDs
     if not args.parm_only: do_amber_preproduction(complex_name, base, args, ff)
     #run the final production MD
