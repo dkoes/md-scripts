@@ -281,7 +281,7 @@ def set_matches(fname, libs, reslist, orphaned_res, mol, force=False):
     molatoms = set([name.strip() for name in mol.mol_data['atomname']])
     if not set(libatoms).issubset(molatoms) or ext == 'prep' and not force:            
         matches = set([])
-        print "Unit(s) %s missing atoms: %s"% (' '.join(units), ' '.join(libatoms))
+        print "Unit(s) %s atoms missing from model: %s"% (' '.join(units), ' '.join(libatoms))
     if matches:
         #redefine a unit iff found in a user-provided lib, but warn the user about the
         #duplication. don't redefine if found locally. 
