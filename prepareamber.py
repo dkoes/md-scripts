@@ -281,7 +281,7 @@ def set_matches(fname, libs, reslist, orphaned_res, mol, force=False):
     molatoms = set([name.strip() for name in mol.mol_data['atomname']])
     if not set(libatoms).issubset(molatoms) or ext == 'prep' and not force:            
         matches = set([])
-        print "Unit(s) %s missing atoms: %s"% (' '.join(units), ' '.join(libatoms))
+        print "Unit(s) %s missing atoms: %s"% (' '.join(units), ' '.join(set(libatoms) - molatoms))
     if matches:
         #redefine a unit iff found in a user-provided lib, but warn the user about the
         #duplication. don't redefine if found locally. 
@@ -431,6 +431,7 @@ if __name__ == '__main__':
         mol_data[structure] = pdb.simplepdb(structure)
         if not mol_data[structure].has_unique_names() and not mol_data[structure].is_protein():
             mol_data[structure].rename_atoms()
+            print "Renaming atoms for",structure
         mol_res[structure] = set(mol_data[structure].mol_data['resname'])
         nonstandard_res[structure] = list(mol_res[structure] - standard_res)
 
