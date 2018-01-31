@@ -580,6 +580,7 @@ cofactors\n" % ' '.join(orphaned_res)
     #make initial parameters files
     make_amber_parm(complex_name, base, ff, 'complex', args.water_model, args.water_dist, libs, extra=args.extra)
     #run the two minimization and two pre-production  MDs
-    if not args.parm_only: do_amber_preproduction(complex_name, base, args, ff)
-    #run the final production MD
-    do_amber_production(base, args.run_prod_md)
+    if not args.parm_only: 
+        do_amber_preproduction(complex_name, base, args, ff)
+        #run the final production MD
+        do_amber_production(base, args.run_prod_md)
