@@ -195,13 +195,14 @@ class simplepdb:
     
     def set_element(self):
         '''
-        Set atom element based on atom name
+        Set atom element based on atom name, but only if element not set.
         '''
-        for i,name in enumerate(self.mol_data['atomname']):
-            element = ''.join([char for char in name if char.isalpha()])
-            element = element.title()
-            self.mol_data['element'][i] = '{:>{}s}'.format(element,
-                    util.pdb_fieldwidths[-2])
+        if not self.mol_data['element']:
+            for i,name in enumerate(self.mol_data['atomname']):
+                element = ''.join([char for char in name if char.isalpha()])
+                element = element.title()
+                self.mol_data['element'][i] = '{:>{}s}'.format(element,
+                        util.pdb_fieldwidths[-2])
 
     def sanitize(self):
         '''
