@@ -178,19 +178,19 @@ class simplepdb:
         if self.has_unique_names():
             return
         for i,name in enumerate(self.mol_data['atomname']):
-        	self.mol_data['atomname'][i] = ''.join([char.upper() for char in
+            self.mol_data['atomname'][i] = ''.join([char.upper() for char in
                     self.mol_data['atomname'][i] if char.isalpha()])
-        	
+        
         occurrences = {}
         for i,atom in enumerate(self.mol_data['atomname']):
-        	if atom not in occurrences:
-        		occurrences[atom] = [i,1]
-        		self.mol_data['atomname'][i] += str(occurrences[atom][1])
-        	else:
-        		occurrences[atom][1] += 1
-        		self.mol_data['atomname'][i] += str(occurrences[atom][1])
+            if atom not in occurrences:
+                occurrences[atom] = [i,1]
+                self.mol_data['atomname'][i] += str(occurrences[atom][1])
+            else:
+                occurrences[atom][1] += 1
+                self.mol_data['atomname'][i] += str(occurrences[atom][1])
                 self.mol_data['atomname'][i] = \
-                '{:>{}s}'.format(self.mol_data['atomname'][i].title(),
+                '{:>{}s}'.format(self.mol_data['atomname'][i],
                         util.pdb_fieldwidths[3])
     
     def set_element(self):
