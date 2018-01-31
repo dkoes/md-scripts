@@ -27,6 +27,7 @@ class Tee(object):
         print data
         if self.file:
             self.file.write(str(data)+'\n')
+            self.file.flush()
         
 runfile = Tee() #a global variable so I don't have to pass it around
         
