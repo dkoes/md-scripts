@@ -3,7 +3,7 @@
 import argparse
 import simplepdb as pdb
 import pdb_util as util
-import os, shutil, glob, sys
+import os, shutil, glob, sys, logging
 from plumbum import FG
 from plumbum.cmd import sed, grep, cut, uniq, wc
 try:
@@ -15,6 +15,21 @@ try:
 except ImportError:
     raise ImportError('Check that AMBER binaries are on your path')
 
+
+class Tee(object):
+    '''For runfile, duplicate stdout to file'''
+    def __init__(self, name=None):
+        if name:
+            self.file = open(name, 'w')
+        else:
+            self.file = None
+    def writeln(self, data):
+        print data
+        if self.file:
+            self.file.write(str(data)+'\n')
+        
+runfile = Tee() #a global variable so I don't have to pass it around
+        
 def get_cmd(input_str):
     cmd_dict = {'.frcmod' : 'loadamberparams', '.lib' : 'loadoff', '.off' : 
             'loadoff', '.prep' : 'loadAmberPrep', '.mol2' : 'loadmol2', '.pdb' :
@@ -35,6 +50,10 @@ def make_amber_parm(fname, base, ff, molname='', water_model = '',
     with open(base + '.tleap', 'w') as leap_input:
         leap_input.write('source ' + ff + '\n' + 
                 'source leaprc.gaff\n')
+                
+        if water_model: # source before loading structures
+            leap_input.write('source ' + water_model + '\n')
+            
         for lib in libs:
             leap_input.write(get_cmd(lib) + ' ' + lib + '\n')
         leap_input.write(molname + '=' + get_cmd(fname) + ' ' + fname + '\n')
@@ -45,8 +64,7 @@ def make_amber_parm(fname, base, ff, molname='', water_model = '',
             print extracmds
             leap_input.write(extracmds)
         if water_model:
-            leap_input.write('source ' + water_model + '\n' + 
-                    'solvateoct '+molname+' TIP3PBOX ' + str(wat_dist) + '\n' + 
+            leap_input.write('solvateoct '+molname+' TIP3PBOX ' + str(wat_dist) + '\n' + 
                     'addions '+molname+' Na+ 0\n' + 
                     'addions '+molname+' Cl- 0\n')
         elif frcmod:
@@ -54,7 +72,9 @@ def make_amber_parm(fname, base, ff, molname='', water_model = '',
                     'saveoff '+molname+' '+base+'.lib\n')
         leap_input.write('saveamberparm ' + molname+ ' ' + prmtop + ' ' + inpcrd + '\n')
         leap_input.write('quit\n')
-    tleap['-f', base + '.tleap'] & FG
+    command = tleap['-f', base + '.tleap'] 
+    runfile.writeln(command)
+    command & FG
 
 def do_amber_min_constraint(fname, base):
     '''
@@ -91,7 +111,7 @@ def do_amber_min_constraint(fname, base):
     command = pmemd_cuda['-O', '-i', base+'_min1.in', '-o', base+'_min1.out', '-p',
             base+'.prmtop', '-c', base+'.inpcrd', '-r', base+'_min1.rst',
             '-ref', base+'.inpcrd'] 
-    print command
+    runfile.writeln(command)
     command & FG
 
 def do_amber_min(base):
@@ -110,7 +130,7 @@ def do_amber_min(base):
             ' /\n')
     command = pmemd_cuda['-O', '-i', base+'_min2.in', '-o', base+'_min2.out', '-p',
             base+'.prmtop', '-c', base+'_min1.rst', '-r', base+'_min2.rst'] 
-    print command
+    runfile.writeln(command)
     command & FG
 
 def do_amber_warmup(fname, base, temperature):
@@ -156,7 +176,7 @@ def do_amber_warmup(fname, base, temperature):
     command = pmemd_cuda['-O', '-i', base+'_md1.in', '-o', base+'_md1.out', '-p',
             base+'.prmtop', '-c', base+'_min2.rst', '-r', base+'_md1.rst',
             '-ref', base+'_min2.rst', '-x', base+'_md1.nc'] 
-    print command
+    runfile.writeln(command)
     command & FG
 
 def do_amber_constant_pressure(base, temp):
@@ -180,7 +200,7 @@ def do_amber_constant_pressure(base, temp):
     command = pmemd_cuda['-O', '-i', base+'_md2.in', '-o', base+'_md2.out', '-p',
             base+'.prmtop', '-c', base+'_md1.rst', '-r', base+'_md2.rst',
             '-x', base+'_md2.nc'] 
-    print command
+    runfile.writeln(command)
     command & FG
 
 def make_amber_production_input(base, args):
@@ -218,15 +238,16 @@ def do_amber_preproduction(fname, base, args, ff):
     do_amber_constant_pressure(base, args.temperature)
     make_amber_production_input(base, args)
 
-def do_amber_production(base):
+def do_amber_production(base, dorun):
     '''
-    Does AMBER production run MD locally
+    Does AMBER production run MD locally.  If dorun is false, only print command
     '''
     command = pmemd_cuda['-O', '-i', base+'_md3.in', '-o', base+'_md3.out', '-p',
             base+'.prmtop', '-c', base+'_md2.rst', '-r', base+'_md3.rst',
             '-x', base+'_md3.nc'] 
-    print command
-    command & FG
+    runfile.writeln(command)
+    if dorun:
+        command & FG
 
 def do_antechamber(fname, net_charge, ff, molname, base = ''):
     '''
@@ -240,12 +261,14 @@ def do_antechamber(fname, net_charge, ff, molname, base = ''):
     try:
         command = antechamber['-i', fname, '-fi', ext, '-o', mol2, '-fo', 'mol2', '-c',
                 'bcc', '-nc', str(net_charge), '-s', '2']
+        runfile.writeln(command)
         command()
     except Exception as e:
         try:
             net_charge = -1
             command = antechamber['-i', fname, '-fi', ext, '-o', mol2, '-fo', 'mol2', '-c',
                     'bcc', '-nc', str(net_charge), '-s', '2']
+            runfile.writeln(command)
             command()
         except Exception as e:
             print 'Antechamber failed. Check {0} structure. Aborting...\n'.format(fname)
@@ -542,6 +565,8 @@ cofactors\n" % ' '.join(orphaned_res)
     else:
        complex_name = args.structures[0]
 
+    runfile = Tee(os.path.splitext(complex_name)[0]+'.run')
+    
     if len(args.structures) > 1:
         start_atom, start_res = 1,1
         if os.path.isfile(complex_name):
@@ -556,4 +581,4 @@ cofactors\n" % ' '.join(orphaned_res)
     #run the two minimization and two pre-production  MDs
     if not args.parm_only: do_amber_preproduction(complex_name, base, args, ff)
     #run the final production MD
-    if args.run_prod_md: do_amber_production(base)
+    do_amber_production(base, args.run_prod_md)
