@@ -178,20 +178,19 @@ class simplepdb:
         if self.has_unique_names():
             return
         for i,name in enumerate(self.mol_data['atomname']):
-            self.mol_data['atomname'][i] = ''.join([char.upper() for char in
-                    self.mol_data['atomname'][i] if char.isalpha()])
+            self.mol_data['atomname'][i] = ''.join([char for char in
+                    self.mol_data['element'][i]])
         
         occurrences = {}
         for i,atom in enumerate(self.mol_data['atomname']):
             if atom not in occurrences:
                 occurrences[atom] = [i,1]
-                self.mol_data['atomname'][i] += str(occurrences[atom][1])
             else:
                 occurrences[atom][1] += 1
-                self.mol_data['atomname'][i] += str(occurrences[atom][1])
-                self.mol_data['atomname'][i] = \
-                '{:>{}s}'.format(self.mol_data['atomname'][i],
-                        util.pdb_fieldwidths[3])
+            self.mol_data['atomname'][i] += str(occurrences[atom][1])
+            self.mol_data['atomname'][i] = \
+            '{:>{}s}'.format(self.mol_data['atomname'][i],
+                    util.pdb_fieldwidths[3])
     
     def set_element(self):
         '''
@@ -200,7 +199,6 @@ class simplepdb:
         if not self.mol_data['element']:
             for i,name in enumerate(self.mol_data['atomname']):
                 element = ''.join([char for char in name if char.isalpha()])
-                element = element.title()
                 self.mol_data['element'][i] = '{:>{}s}'.format(element,
                         util.pdb_fieldwidths[-2])
 
@@ -214,8 +212,8 @@ class simplepdb:
         self.renumber_atoms()
         self.renumber_residues()
         if not self.is_protein():
-            self.rename_atoms()
             self.set_element()
+            self.rename_atoms()
 
     def has_hydrogen(self):
         '''
