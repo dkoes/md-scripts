@@ -497,7 +497,9 @@ cofactors\n" % ' '.join(orphaned_res)
             print "NOT RUNNING pdb4amber due to presence of modified residues."
         elif is_protein and not args.noh: 
             fname = base + '_amber.pdb'
-            pdb4amber['-y', '-i', struct, '-o', fname] & FG
+            command = pdb4amber['-y', '-i', struct, '-o', fname]
+            runfile.writeln(command)
+            command & FG
             idx = args.structures.index(struct)
             args.structures[idx] = fname
             if not args.uninteractive:
@@ -515,7 +517,7 @@ cofactors\n" % ' '.join(orphaned_res)
             #TODO: check whether, if there are multiple ligands to be fit in
             #antechamber, the user has provided unit names for all of them or
             #they have distinct residue names 
-            molname = base
+            molname = base[:3]
             mol_data[struct].sanitize()
             mol_data[struct].set_resname(molname)
             tempname = base + '_temp.pdb'
