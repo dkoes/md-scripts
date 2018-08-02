@@ -1,4 +1,4 @@
-#!/usr/local/bin/python
+#!/usr/bin/env python
 
 import MDAnalysis, argparse
 from MDAnalysis.analysis.rms import rmsd
@@ -54,6 +54,8 @@ parser.add_argument("topology")
 parser.add_argument("trajectory")
 parser.add_argument("size",type=int)
 parser.add_argument("--selection",default="backbone",required=False)
+parser.add_argument("--output_selection",default="not (resname WAT or resname HOH)",required=False)
+
 args = parser.parse_args()
 
 model = MDAnalysis.Universe(args.topology,args.trajectory)
@@ -69,7 +71,7 @@ name = splitext(basename(args.topology))[0]
 for (frame,coords) in current:
 	model.trajectory[frame] #has side effect of setting current frame
 	fname = "%s_%d.pdb" % (name, frame)
-	model.select_atoms('not (resname WAT or resname HOH)').write(fname)
+	model.select_atoms(args.output_selection).write(fname)
 	os.system("sed -i '/REMARK/d' %s" % fname) #remove remarks with binary characters
 
 #print out frame numbers and their respective cnts

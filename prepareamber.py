@@ -517,7 +517,7 @@ cofactors\n" % ' '.join(orphaned_res)
             #TODO: check whether, if there are multiple ligands to be fit in
             #antechamber, the user has provided unit names for all of them or
             #they have distinct residue names 
-            molname = base[:3]
+            molname = base[:3].upper()
             mol_data[struct].sanitize()
             mol_data[struct].set_resname(molname)
             tempname = base + '_temp.pdb'
