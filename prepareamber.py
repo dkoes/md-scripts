@@ -462,21 +462,20 @@ if __name__ == '__main__':
     #if nonstandard residues, do we have the necessary library files? 
     #check for prep, lib, and off; just add the frcmod if there is one
     libs = set([])
-    #make an iterator in case we need to get library names from input arg
     if not args.libs:
         args.libs = []
-    lig_iter = iter(args.libs)
     for struct,reslist in nonstandard_res.items():
         #track which units you don't have libs for
         orphaned_res = set(reslist)
         base = util.get_base(struct)
+        if orphaned_res:
         #try any user-provided locations first
-        for user_lib in args.libs:
-            for ext in ['.lib','.off','.prep']:
-                fname = user_lib + ext
-                if os.path.isfile(fname):
-                    set_matches(fname, libs, reslist, orphaned_res,
-                            mol_data[struct], True)
+            for user_lib in args.libs:
+                for ext in ['.lib','.off','.prep']:
+                    fname = user_lib + ext
+                    if os.path.isfile(fname):
+                        set_matches(fname, libs, reslist, orphaned_res,
+                                mol_data[struct], True)
         #if residues are still undefined, check the current directory too
         if orphaned_res:
             local_libs = [name for name in glob.glob('*.lib') +
@@ -512,14 +511,15 @@ cofactors\n" % ' '.join(orphaned_res)
         #if we're handling a ligand and don't have library files, we will need at 
         #least the pdb-formatted data and a mol2 from which we can derive gasteiger 
         #charges for antechamber; make these with babel and find the net charge
+        orphaned_res = list(orphaned_res)
         if orphaned_res:
             #"molname" will be the name of the unit for AMBER
             #TODO: check whether, if there are multiple ligands to be fit in
             #antechamber, the user has provided unit names for all of them or
             #they have distinct residue names 
-            molname = base[:3].upper()
+            molname = orphaned_res[0]
             mol_data[struct].sanitize()
-            mol_data[struct].set_resname(molname)
+            mol_data[struct].set_resname(orphaned_res[0])
             tempname = base + '_temp.pdb'
             ligname = base + '_amber.pdb'
             if not args.overwrite:
