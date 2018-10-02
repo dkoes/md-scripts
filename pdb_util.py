@@ -145,6 +145,27 @@ def get_charge(mol2):
                 charge += float(line.split()[-1])
     return int(round(charge))
 
+def get_ions(libs):
+    '''
+    Find which ions are defined for chosen water model; returns a dict mapping
+    the residue name to the Amber atom type
+    '''
+    ions = {}
+    for lib in libs:
+        copy = False
+        with open(lib, 'r') as f:
+            for line in f:
+                if line.startswith('MASS'):
+                    copy = True
+                elif copy:
+                    contents = line.split()
+                    if contents:
+                        type = contents[0]
+                        name = ''.join(c for c in contents[0] if c.isalpha())
+                        ions[name.upper()] = type
+                elif line.startswith('NONBON'):
+                    break
+    return ions
 
 def get_available_res(ff=''):
     '''

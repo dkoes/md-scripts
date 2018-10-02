@@ -346,7 +346,7 @@ if __name__ == '__main__':
     parser.add_argument('-w', '--water_dist', default=12, help='Water box \
     distance; defaults to 12.')
 
-    parser.add_argument('-wm', '--water_model', default='leaprc.water.tip3p',
+    parser.add_argument('-wm', '--water_model', default='tip3p',
             help='Water model; OPC, SPCE, TIP4P, and TIP3P are available. \
             Defaults to TIP3P.')
 
@@ -390,12 +390,6 @@ if __name__ == '__main__':
     The old script referred to this as the "timestep."')
     
     parser.add_argument('--extra', help="File with additional leap commands to apply")
-
-    #TODO: add extra tleap arg passing
-    #TODO: generate PBS file
-
-    #TODO: deal with different water models including with waters already in
-    #input
     args = parser.parse_args()
 
     #Check whether AMBERHOME is set and the desired force field is available
@@ -416,9 +410,23 @@ if __name__ == '__main__':
             print "Warning: force field %s not found in %s! This is likely to cause \
                 problems later.\n"%(args.force_field,amberhome)
 
+    #Find out which ions are defined with our water model
+    ion_params = []
+    if args.water_model != 'opc':
+        ion_params.append(amberhome + '/dat/leap/parm/frcmod.ionsjc_' +
+                args.water_model)
+        ion_params.append(amberhome + '/dat/leap/parm/frcmod.ions234lm_126_' +
+                args.water_model)
+    else:
+        ion_params.append(amberhome + '/dat/leap/parm/frcmod.ionsjc_tip4pew')
+        ion_params.append(amberhome + '/dat/leap/parm/frcmod.ions234lm_126_tip4pew')
+    ions = util.get_ions(ion_params)
+
     #Find out which water model we're using
     if args.water_model == 'opc':
         args.water_model = 'leaprc.water.opc'
+    elif args.water_model == 'tip3p':
+        args.water_model = 'leaprc.water.tip3p'
     elif args.water_model == 'spce':
         args.water_model = 'leaprc.water.spce'
     elif args.water_model == 'tip4':
@@ -457,7 +465,10 @@ if __name__ == '__main__':
             mol_data[structure].rename_atoms()
             print "Renaming atoms for",structure
         mol_res[structure] = set(mol_data[structure].mol_data['resname'])
-        nonstandard_res[structure] = list(mol_res[structure] - standard_res)
+        ion_resnames = set(ions.keys())
+        ions_present = set.intersection(mol_res[structure], ion_resnames)
+        nonstandard_res[structure] = list(mol_res[structure] - standard_res -
+                ion_resnames)
 
     #if nonstandard residues, do we have the necessary library files? 
     #check for prep, lib, and off; just add the frcmod if there is one
@@ -502,7 +513,7 @@ cofactors\n" % ' '.join(orphaned_res)
             idx = args.structures.index(struct)
             args.structures[idx] = fname
             if not args.uninteractive:
-                raw_input('Read the above messages and then press any key to continue; note that prepareamber will insert any missing TER records...\n')
+                raw_input('Read the above messages and then press any key to continue; note that prepareamber will insert any missing TER records but does not add ACE/NME caps...\n')
             mol_data[fname] = pdb.simplepdb(fname)
             #if there were gaps, add appropriate TERs
             for line in stderr.splitlines():
@@ -512,7 +523,7 @@ cofactors\n" % ' '.join(orphaned_res)
                     mol_data[fname].add_ter(gap_res)
 
         assert len(orphaned_res)<2, "%s has multiple ligands; break them into \
-        separate files to process with antechamber\n" % struct
+separate files to process with antechamber\n" % struct
 
         #if we're handling a ligand and don't have library files, we will need at 
         #least the pdb-formatted data and a mol2 from which we can derive gasteiger 

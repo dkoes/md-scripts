@@ -69,7 +69,7 @@ class simplepdb:
                 fieldlist = [int(line[i]) if line[i].strip() else line[i] for
                         line in mol_data_list]
             else:
-                fieldlist = [line[i] for line in mol_data_list]
+                fieldlist = [line[i].strip() for line in mol_data_list]
             mol_data[field] = fieldlist
         if not mol_data['element']:
             mol_data = set_element(mol_data)
@@ -307,6 +307,8 @@ class simplepdb:
                             str(mol.mol_data[fieldname][i]).strip():
                                 output='{:.2f}'.format(mol.mol_data[fieldname][i])
                                 f.write('{:>{}s}'.format(str(output),fieldwidth))
+                            elif fieldname=='recordname':
+                                f.write('{:<{}s}'.format(str(mol.mol_data[fieldname][i]),fieldwidth))
                             else:
                                 f.write('{:>{}s}'.format(str(mol.mol_data[fieldname][i]),fieldwidth))
                             j += 1
