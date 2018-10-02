@@ -86,10 +86,7 @@ class simplepdb:
         with open (pdb,'r') as f:
             for line in f:
                 if line.startswith('TER'):
-                    ter = line[23:27].strip()
-                    if not ter:
-                        ter = last_line[23:27].strip()
-                    if ter: ters.append(int(ter)) 
+                    ters.append(int(last_line[23:27].strip()))
                 elif line.startswith('CONECT'):
                     contents = parse(line)
                     atom = int(contents[1])
@@ -103,8 +100,11 @@ class simplepdb:
                     last_line = line
         ter = last_line[23:27].strip()
         if ter and not ter in ters:
-            ters.append(ter)
+            ters.append(int(ter))
         return ters,connect
+
+    def add_ter(self, ter):
+        self.ters.append(ter)
 
     def group_by_residue(self):
         '''

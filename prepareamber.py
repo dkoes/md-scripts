@@ -4,7 +4,7 @@ import argparse
 import simplepdb as pdb
 import pdb_util as util
 import os, shutil, glob, sys, logging
-from plumbum import FG
+from plumbum import FG, TEE
 from plumbum.cmd import sed, grep, cut, uniq, wc
 try:
     from plumbum.cmd import obabel
@@ -498,12 +498,18 @@ cofactors\n" % ' '.join(orphaned_res)
             fname = base + '_amber.pdb'
             command = pdb4amber['-y', '-i', struct, '-o', fname]
             runfile.writeln(command)
-            command & FG
+            code,stdout,stderr = command & TEE
             idx = args.structures.index(struct)
             args.structures[idx] = fname
             if not args.uninteractive:
-                raw_input('Read the above messages and then press any key to continue...\n')
+                raw_input('Read the above messages and then press any key to continue; note that prepareamber will insert any missing TER records...\n')
             mol_data[fname] = pdb.simplepdb(fname)
+            #if there were gaps, add appropriate TERs
+            for line in stderr.splitlines():
+                if line.startswith('gap'):
+                    contents = line.split()
+                    gap_res = int(contents[5].split('_')[1])
+                    mol_data[fname].add_ter(gap_res)
 
         assert len(orphaned_res)<2, "%s has multiple ligands; break them into \
         separate files to process with antechamber\n" % struct
