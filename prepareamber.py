@@ -38,6 +38,25 @@ def get_cmd(input_str):
     ext = os.path.splitext(input_str)[-1]
     return cmd_dict[ext]
 
+def get_waterbox(water_model):
+    if water_model == 'leaprc.water.opc':
+        return ' OPCBOX '
+    elif water_model == 'leaprc.water.tip3p':
+        return ' TIP3PBOX '
+    elif water_model == 'leaprc.water.spce':
+        return ' SPCBOX '
+    elif water_model == 'leaprc.water.tip4pew':
+        return ' TIP4PEWBOX '
+
+def get_water_nickname(water_model):
+    if water_model == 'leaprc.water.opc':
+        return 'OPC'
+    elif water_model == 'leaprc.water.tip3p':
+        return 'TP3'
+    elif water_model == 'leaprc.water.spce':
+        return 'SPC'
+    elif water_model == 'leaprc.water.tip4pew':
+        return 'T4E'
 
 def make_amber_parm(fname, base, ff, molname='', water_model = '', 
         wat_dist = 0, libs=[], frcmod = '', extra=None):
@@ -53,6 +72,9 @@ def make_amber_parm(fname, base, ff, molname='', water_model = '',
                 'source leaprc.gaff\n')
                 
         if water_model: # source before loading structures
+            water_nickname = get_water_nickname(water_model)
+            leap_input.write('WAT = %s\n' %water_nickname)
+            leap_input.write('HOH = %s\n' %water_nickname)
             leap_input.write('source ' + water_model + '\n')
             
         for lib in libs:
@@ -65,7 +87,8 @@ def make_amber_parm(fname, base, ff, molname='', water_model = '',
             print extracmds
             leap_input.write(extracmds)
         if water_model:
-            leap_input.write('solvateoct '+molname+' TIP3PBOX ' + str(wat_dist) + '\n' + 
+            leap_input.write('solvateoct '+ molname + get_waterbox(water_model) + 
+                    str(wat_dist) + '\n' + 
                     'addions '+molname+' Na+ 0\n' + 
                     'addions '+molname+' Cl- 0\n')
         elif frcmod:
@@ -408,7 +431,7 @@ if __name__ == '__main__':
             ff = amberhome + '/dat/leap/cmd/oldff/leaprc.' + args.force_field            
         else:
             print "Warning: force field %s not found in %s! This is likely to cause \
-                problems later.\n"%(args.force_field,amberhome)
+problems later.\n"%(args.force_field,amberhome)
 
     #Find out which ions are defined with our water model
     ion_params = []
@@ -423,6 +446,8 @@ if __name__ == '__main__':
     ions = util.get_ions(ion_params)
 
     #Find out which water model we're using
+    assert args.water_model in ['opc', 'tip3p', 'spce', 'tip4'], 'Unknown water \
+model %s\n' %args.water_model
     if args.water_model == 'opc':
         args.water_model = 'leaprc.water.opc'
     elif args.water_model == 'tip3p':
@@ -454,7 +479,7 @@ if __name__ == '__main__':
                 obabel[structure, '-O', outpdb]()
             except Exception as e:
                 print 'Cannot create PDB from input, error {0} : {1}. Check \
-                {2}. Aborting...\n'.format(e.errno, e.strerror, outpdb)
+{2}. Aborting...\n'.format(e.errno, e.strerror, outpdb)
                 sys.exit()
             idx = args.structures.index(structure)
             args.structures[idx] = outpdb
