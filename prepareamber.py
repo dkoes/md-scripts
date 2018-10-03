@@ -461,7 +461,12 @@ model %s\n' %args.water_model
     mol_data = {}
     nonstandard_res = {}
     standard_res = util.get_available_res(ff)
-    
+    #pdb4amber seems to delete mercury (HG) along with hydrogens; for now my
+    #hacky fix is to store the relevant atom info if mercury is present and add
+    #the mercury back in after stripping...I'm preemptively doing this for
+    #hafnium too
+    metal_info = {}
+   
     #if any structure was not provided in PDB format, we will attempt to create
     #one from what was provided using obabel, choosing a filename that will not
     #overwrite anything in the directory (optionally)
@@ -492,6 +497,11 @@ model %s\n' %args.water_model
         mol_res[structure] = set(mol_data[structure].mol_data['resname'])
         ion_resnames = set(ions.keys())
         ions_present = set.intersection(mol_res[structure], ion_resnames)
+        metal_info[structure] = {}
+        if 'HG' in ions_present:
+            metal_info[structure]['HG'] = mol_data[structure].get_res_info({'resname':'HG'})
+        if 'HF' in ions_present:
+            metal_info[structure]['HF'] = mol_data[structure].get_res_info({'resname':'HF'})
         nonstandard_res[structure] = list(mol_res[structure] - standard_res -
                 ion_resnames)
 
@@ -539,6 +549,7 @@ cofactors\n" % ' '.join(orphaned_res)
             args.structures[idx] = fname
             if not args.uninteractive:
                 raw_input('Read the above messages and then press any key to continue; note that prepareamber will insert any missing TER records but does not add ACE/NME caps...\n')
+            #TODO: I mean, we _could_ add the ACE/NME caps...
             mol_data[fname] = pdb.simplepdb(fname)
             #if there were gaps, add appropriate TERs
             for line in stderr.splitlines():
@@ -546,6 +557,11 @@ cofactors\n" % ' '.join(orphaned_res)
                     contents = line.split()
                     gap_res = int(contents[5].split('_')[1])
                     mol_data[fname].add_ter(gap_res)
+            for deleted_ion,data in metal_info[struct].iteritems():
+                current_residues = set(mol_data[fname].mol_data['resname'])
+                if deleted_ion not in current_residues:
+                    for res in data:
+                        mol_data[fname].add_residue(res)
 
         assert len(orphaned_res)<2, "%s has multiple ligands; break them into \
 separate files to process with antechamber\n" % struct

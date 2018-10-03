@@ -103,8 +103,47 @@ class simplepdb:
             ters.append(int(ter))
         return ters,connect
 
+    def get_res_info(self, field_dict):
+        '''
+        Returns a list of dictionaries containing all relevant info for
+        residues whose field value matches the passed-in value
+        '''
+        info = []
+        resnums = []
+        for key,value in field_dict.iteritems():
+            assert key in self.mol_data.keys(), 'Invalid residue identifier\n'
+            indices = [i for i,e in enumerate(self.mol_data[key]) if e==value]
+            for index in indices:
+                resnum = self.mol_data['resnum'][index]
+                if resnum not in resnums:
+                    resnums.append(resnum)
+                    info.append({})
+                    for key in self.mol_data.keys():
+                        info[-1][key] = [self.mol_data[key][index]]
+                else:
+                    res_index = resnums.index(resnum)
+                    for key in self.mol_data.keys():
+                        info[res_index][key].append(self.mol_data[key][index])
+        return info
+
     def add_ter(self, ter):
         self.ters.append(ter)
+
+    def add_residue(self, res_info, ignore_resnum=True):
+        '''
+        Takes a dict mapping fieldnames to values and adds the residue to the
+        existing mol_data dict, defaults to ignoring the existing residue
+        number and just sticking it at the end
+        '''
+        assert len(set(res_info['resnum'])) == 1, 'Different residue numbers in putative residue\n'
+        if ignore_resnum:
+            res_info['resnum'] = [max(self.mol_data['resnum']) + 1] * len(res_info['resnum'])
+        else:
+            assert res_info['resnum'][0] > 0, 'Residue numbers must be positive integers\n'
+            assert res_info['resnum'][0] not in self.mol_data['resnum'], 'Residue number %d already exists\n' %res_info['resnum'][0]
+        for key,value in self.mol_data.iteritems():
+            value += res_info[key]
+        self.natoms += len(res_info['resnum'])
 
     def group_by_residue(self):
         '''
