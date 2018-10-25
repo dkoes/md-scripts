@@ -37,7 +37,7 @@ class simplepdb:
         else:
             assert os.path.isfile(other), 'simplepdb constructor requires \
             input PDB or object of the same type.\n'
-            assert os.path.splitext(other)[-1] == '.pdb', 'Not a PDB file.\n'
+            assert 'pdb' in os.path.splitext(other)[-1], 'Not a PDB file.\n'
             self.mol_data = self.parse_pdb(other)
             self.ters,self.connect = self.get_ters_and_connect(other)
             self.natoms = len(self.mol_data['atomnum'])

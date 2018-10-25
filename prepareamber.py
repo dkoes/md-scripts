@@ -476,7 +476,7 @@ model %s\n' %args.water_model
         assert os.path.isfile(structure),'%s does not exist\n' % structure
         #"base" is the base filename (no extension) from which others will be derived
         base = util.get_base(structure)
-        if os.path.splitext(structure)[-1] != '.pdb':
+        if 'pdb' not in os.path.splitext(structure)[-1]:
             outpdb = base + '.pdb'
             if not args.overwrite:
                 outpdb = util.get_fname(outpdb)
