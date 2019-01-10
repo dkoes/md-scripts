@@ -86,7 +86,9 @@ class simplepdb:
         with open (pdb,'r') as f:
             for line in f:
                 if line.startswith('TER'):
-                    ters.append(int(last_line[23:27].strip()))
+                    #this includes the insertion code, if applicable, so the
+                    #ters have to be strings rather than ints
+                    ters.append(last_line[23:27].strip())
                 elif line.startswith('CONECT'):
                     contents = parse(line)
                     atom = int(contents[1])
@@ -100,7 +102,7 @@ class simplepdb:
                     last_line = line
         ter = last_line[23:27].strip()
         if ter and not ter in ters:
-            ters.append(int(ter))
+            ters.append(ter)
         return ters,connect
 
     def get_res_info(self, field_dict):
@@ -125,6 +127,25 @@ class simplepdb:
                     for key in self.mol_data.keys():
                         info[res_index][key].append(self.mol_data[key][index])
         return info
+
+    def get_center(self):
+        '''
+        Returns location of center
+        '''
+        center = [0,0,0]
+        center[0] = sum(self.mol_data['x']) / self.natoms
+        center[1] = sum(self.mol_data['y']) / self.natoms
+        center[2] = sum(self.mol_data['z']) / self.natoms
+        return center
+
+    def set_origin(self, loc):
+        '''
+        Translates molecule to new origin
+        '''
+        assert len(loc)==3,"Center is not three dimensional"
+        self.mol_data['x'] = [x - loc[0] for x in self.mol_data['x']]
+        self.mol_data['y'] = [y - loc[1] for y in self.mol_data['y']]
+        self.mol_data['z'] = [z - loc[2] for z in self.mol_data['z']]
 
     def add_ter(self, ter):
         self.ters.append(ter)
@@ -198,7 +219,7 @@ class simplepdb:
         '''
         reslist = []
         for i,resnum in enumerate(self.mol_data['resnum']):
-            name = self.mol_data['resname'][i] + str(resnum) 
+            name = str(resnum)
             if name not in reslist:
                 newidx = len(reslist)
                 reslist.append(name)
@@ -206,9 +227,10 @@ class simplepdb:
                 newidx = reslist.index(name)
             newnum = newidx + start_val
             self.mol_data['resnum'][i] = newnum
-            if resnum in self.ters:
-                ter_idx = self.ters.index(resnum)
-                self.ters[ter_idx] = newnum 
+            insert_code = self.mol_data['rescode'][i]
+            if str(resnum) + insert_code in self.ters:
+                ter_idx = self.ters.index(str(resnum)+insert_code)
+                self.ters[ter_idx] = str(newnum) + insert_code
     
     def rename_atoms(self):
         '''
@@ -354,10 +376,12 @@ class simplepdb:
                         else:
                             f.write('{:>{}s}'.format('',abs(fieldwidth)))
                     f.write('\n')
+                    insert_code = mol.mol_data['rescode'][i]
                     if (i == mol.natoms-1):
                         f.write('TER\n')
-                    elif (mol.mol_data['resnum'][i] in mol.ters and
-                    mol.mol_data['resnum'][i] != mol.mol_data['resnum'][i+1]):
+                    elif (str(mol.mol_data['resnum'][i])+insert_code in mol.ters and
+                    str(mol.mol_data['resnum'][i])+insert_code !=
+                    str(mol.mol_data['resnum'][i+1])+mol.mol_data['rescode'][i+1]):
                         f.write('TER\n')
                 start_atom = mol.mol_data['atomnum'][-1]+1
                 start_res = mol.mol_data['resnum'][-1]+1

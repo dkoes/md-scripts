@@ -555,7 +555,7 @@ cofactors\n" % ' '.join(orphaned_res)
             for line in stderr.splitlines():
                 if line.startswith('gap'):
                     contents = line.split()
-                    gap_res = int(contents[5].split('_')[1])
+                    gap_res = contents[5].split('_')[1]
                     mol_data[fname].add_ter(gap_res)
             for deleted_ion,data in metal_info[struct].iteritems():
                 current_residues = set(mol_data[fname].mol_data['resname'])
