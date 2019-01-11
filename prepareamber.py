@@ -11,7 +11,7 @@ try:
 except ImportError:
     raise ImportError('Check that obabel is on your path')
 try:
-    from plumbum.cmd import antechamber, parmchk, pdb4amber, tleap, pmemd_cuda
+    from plumbum.cmd import antechamber, parmchk, pdb4amber, tleap, pmemd_cuda, match_atomname
 except ImportError:
     raise ImportError('Check that AMBER binaries are on your path')
 
@@ -611,6 +611,13 @@ separate files to process with antechamber\n" % struct
             #add the libraries created in the last step to the libs list
             libs.add(base + '.lib')
             libs.add(base + '.frcmod')
+            #Antechamber does not preserve the input atomnames. It comes packaged with
+            #a program called match_atomname to cope with this. 
+            command = match_atomname['-i', ligname, '-fi', 'pdb', '-r', mol2, '-fr',
+                    'mol2', '-o', ligname, '-h', 1]
+            runfile.writeln(command)
+            command()
+            mol_data[ligname] = pdb.simplepdb(ligname)
 
     #always add requeted frcmod files as they may apply to multiple ligands
     for lib in args.libs:
