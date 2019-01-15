@@ -498,6 +498,7 @@ model %s\n' %args.water_model
         ion_resnames = set(ions.keys())
         ions_present = set.intersection(mol_res[structure], ion_resnames)
         metal_info[structure] = {}
+	#TODO: the pdb4amber problem this is trying to address still exists, but changes to this script's handling of ions mean this fails to solve the problem
         if 'HG' in ions_present:
             metal_info[structure]['HG'] = mol_data[structure].get_res_info({'resname':'HG'})
         if 'HF' in ions_present:
