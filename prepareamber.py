@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-import argparse
+import argparse, re
 import simplepdb as pdb
 import pdb_util as util
 import os, shutil, glob, sys, logging
@@ -554,9 +554,9 @@ cofactors\n" % ' '.join(orphaned_res)
             mol_data[fname] = pdb.simplepdb(fname)
             #if there were gaps, add appropriate TERs
             for line in stderr.splitlines():
-                if line.startswith('gap'):
-                    contents = line.split()
-                    gap_res = contents[5].split('_')[1]
+                m = re.search(r'^gap .*between (\S+).(\d+)',line)
+                if m:
+                    gap_res = m.group(2)
                     mol_data[fname].add_ter(gap_res)
             for deleted_ion,data in metal_info[struct].iteritems():
                 current_residues = set(mol_data[fname].mol_data['resname'])
