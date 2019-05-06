@@ -11,10 +11,18 @@ try:
 except ImportError:
     raise ImportError('Check that obabel is on your path')
 try:
-    from plumbum.cmd import antechamber, parmchk, pdb4amber, tleap, pmemd_cuda, match_atomname
-except ImportError:
+    from plumbum.cmd import antechamber, pdb4amber, tleap, pmemd_cuda, match_atomname
+except ImportError as e:
+    print e
     raise ImportError('Check that AMBER binaries are on your path')
 
+try:
+    from plumbum.cmd import parmchk
+except ImportError:
+    try:
+        from plumbum.cmd import parmchk2
+    except ImportError:
+        raise ImportError('Check parmchk[2] on your path')
 
 class Tee(object):
     '''For runfile, duplicate stdout to file'''
