@@ -479,12 +479,19 @@ model %s\n' %args.water_model
     #one from what was provided using obabel, choosing a filename that will not
     #overwrite anything in the directory (optionally)
     for structure in args.structures:
+        net_charge = None
         #the "structure" string in the args.structure list will be updated so
         #that it corresponds to the PDB we should use for subsequent steps
         assert os.path.isfile(structure),'%s does not exist\n' % structure
         #"base" is the base filename (no extension) from which others will be derived
         base = util.get_base(structure)
-        if 'pdb' not in os.path.splitext(structure)[-1]:
+        ext = os.path.splitext(structure)[-1]
+        if 'pdb' not in ext:
+            #if it's a mol2, store the net_charge from the input because
+            #conversion to a pdb and back to a mol2 with openbabel is not
+            #guaranteed to result in the same partial charges
+            if 'mol2' in ext:
+                net_charge = util.get_charge(structure)
             outpdb = base + '.pdb'
             if not args.overwrite:
                 outpdb = util.get_fname(outpdb)
@@ -613,7 +620,9 @@ separate files to process with antechamber\n" % struct
             mol_data[ligname] = mol_data[struct]
             #get gasteiger charges
             obabel[ligname, '-O', mol2]()
-            net_charge = util.get_charge(mol2)
+            #only compute if we didn't already get a value using an original mol2
+            if net_charge is None:
+                net_charge = util.get_charge(mol2)
             #run antechamber
             print 'Parametrizing unit %s with antechamber.\n' % ' '.join(orphaned_res)
             do_antechamber(ligname, net_charge, ff, molname, base)

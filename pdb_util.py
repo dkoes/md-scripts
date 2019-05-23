@@ -130,11 +130,11 @@ def get_charge(mol2):
     '''
     with open(mol2, 'r') as f:
         copy = False
-        charge = 0
+        charge = 0.0
         for line in f:
             if line.startswith('@'):
                 record = line.split('>')[-1]
-                if record == 'ATOM':
+                if record.strip() == 'ATOM':
                     copy = True 
                 elif record != 'ATOM':
                     if copy == True:
