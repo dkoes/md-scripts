@@ -290,6 +290,8 @@ def do_antechamber(fname, net_charge, ff, molname, base = ''):
     ext = os.path.splitext(fname)[-1]
     ext = ext.lstrip('.')
     mol2 = base + '_amber.mol2'
+    #TODO: known issues with phosphates (see PDB: 2PQC) when getting the net
+    #charge from Gastieger charges computed with Open Babel
     try:
         command = antechamber['-i', fname, '-fi', ext, '-o', mol2, '-fo', 'mol2', '-c',
                 'bcc', '-nc', str(net_charge), '-s', '2']
@@ -618,10 +620,9 @@ separate files to process with antechamber\n" % struct
             idx = args.structures.index(struct)
             args.structures[idx] = ligname
             mol_data[ligname] = mol_data[struct]
-            #get gasteiger charges
-            obabel[ligname, '-O', mol2]()
             #only compute if we didn't already get a value using an original mol2
             if net_charge is None:
+                obabel[ligname, '-O', mol2]()
                 net_charge = util.get_charge(mol2)
             #run antechamber
             print 'Parametrizing unit %s with antechamber.\n' % ' '.join(orphaned_res)
