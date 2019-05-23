@@ -1,5 +1,5 @@
 #!/usr/bin/python
-import os, re
+import os, re, math
 from itertools import izip_longest
 
 #Basic utilities used by simplepdb or prepareamber that are generally useful and
@@ -143,7 +143,7 @@ def get_charge(mol2):
                         continue
             elif (copy == True):
                 charge += float(line.split()[-1])
-    return int(round(charge))
+    return int(math.ceil(charge)) if charge > 0 else int(math.floor(charge))
 
 def get_ions(libs):
     '''
