@@ -299,7 +299,7 @@ def do_antechamber(fname, net_charge, ff, molname, base = ''):
         command()
     except Exception as e:
         try:
-            net_charge = -1
+            net_charge = 0
             command = antechamber['-i', fname, '-fi', ext, '-o', mol2, '-fo', 'mol2', '-c',
                     'bcc', '-nc', str(net_charge), '-s', '2']
             runfile.writeln(command)
@@ -626,6 +626,8 @@ separate files to process with antechamber\n" % struct
                 net_charge = util.get_charge(mol2)
             #run antechamber
             print 'Parametrizing unit %s with antechamber.\n' % ' '.join(orphaned_res)
+            if util.is_secret_peptide(mol_data[ligname]):
+                print 'Warning: the ligand %s maybe actually be a peptide. If antechamber fails, check the residue names\n' %ligname
             do_antechamber(ligname, net_charge, ff, molname, base)
             #add the libraries created in the last step to the libs list
             libs.add(base + '.lib')
