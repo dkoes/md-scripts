@@ -20,7 +20,7 @@ try:
     from plumbum.cmd import parmchk
 except ImportError:
     try:
-        from plumbum.cmd import parmchk2
+        from plumbum.cmd import parmchk2 as parmchk
     except ImportError:
         raise ImportError('Check parmchk[2] on your path')
 
