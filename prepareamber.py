@@ -291,20 +291,30 @@ def do_antechamber(fname, net_charge, ff, molname, base = ''):
     ext = ext.lstrip('.')
     mol2 = base + '_amber.mol2'
     #TODO: known issues with phosphates (see PDB: 2PQC) when getting the net
-    #charge from Gastieger charges computed with Open Babel
+    #charge from Gasteiger charges computed with Open Babel
     try:
         command = antechamber['-i', fname, '-fi', ext, '-o', mol2, '-fo', 'mol2', '-c',
                 'bcc', '-nc', str(net_charge), '-s', '2']
         runfile.writeln(command)
         command()
     except Exception as e:
-        try:
-            net_charge = 0
-            command = antechamber['-i', fname, '-fi', ext, '-o', mol2, '-fo', 'mol2', '-c',
-                    'bcc', '-nc', str(net_charge), '-s', '2']
-            runfile.writeln(command)
-            command()
-        except Exception as e:
+        passed = False
+        charges = []
+        if net_charge != 0:
+            charges.append(0)
+        if net_charge != -1:
+            charges.append(-1)
+        for charge in charges:
+            try:
+                command = antechamber['-i', fname, '-fi', ext, '-o', mol2, '-fo', 'mol2', '-c',
+                        'bcc', '-nc', str(charge), '-s', '2']
+                runfile.writeln(command)
+                command()
+                passed = True
+                break
+            except Exception as e:
+                pass
+        if not passed:
             print 'Antechamber failed. Check {0} structure. Aborting...\n'.format(fname)
             sys.exit()
 
