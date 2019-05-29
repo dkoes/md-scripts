@@ -11,7 +11,7 @@ try:
 except ImportError:
     raise ImportError('Check that obabel is on your path')
 try:
-    from plumbum.cmd import antechamber, pdb4amber, tleap, pmemd_cuda, match_atomname
+    from plumbum.cmd import antechamber, pdb4amber, tleap, pmemd_cuda
 except ImportError as e:
     print e
     raise ImportError('Check that AMBER binaries are on your path')
@@ -23,6 +23,14 @@ except ImportError:
         from plumbum.cmd import parmchk2 as parmchk
     except ImportError:
         raise ImportError('Check parmchk[2] on your path')
+
+try:
+    from plumbum.cmd import match_atomname
+except ImportError:
+    raise ImportError('Check match_atomname (one of the antechamber-related'
+            ' AmberTools packages) has been built - starting with AmberTools18 it'
+            ' is not built by default, but can be built manually from' 
+            ' $AMBERHOME/AmberTools/src/antechamber/')
 
 class Tee(object):
     '''For runfile, duplicate stdout to file'''
