@@ -41,6 +41,8 @@ class simplepdb:
             self.mol_data = self.parse_pdb(other)
             self.ters,self.connect = self.get_ters_and_connect(other)
             self.natoms = len(self.mol_data['atomnum'])
+            if self.natoms == 0:
+                print "WARNING: no atoms in molecule.\n"
 
     def __eq__(self, other):
         '''
@@ -72,7 +74,7 @@ class simplepdb:
                 fieldlist = [line[i].strip() for line in mol_data_list]
             mol_data[field] = fieldlist
         if not mol_data['element']:
-            mol_data = set_element(mol_data)
+            self.set_element(mol_data)
         return mol_data
 
     def get_ters_and_connect(self, pdb):
@@ -253,14 +255,14 @@ class simplepdb:
             '{:>{}s}'.format(self.mol_data['atomname'][i],
                     util.pdb_fieldwidths[3])
     
-    def set_element(self):
+    def set_element(self, mol_data):
         '''
         Set atom element based on atom name, but only if element not set.
         '''
-        if not self.mol_data['element']:
-            for i,name in enumerate(self.mol_data['atomname']):
+        if not mol_data['element']:
+            for i,name in enumerate(mol_data['atomname']):
                 element = ''.join([char for char in name if char.isalpha()])
-                self.mol_data['element'][i] = '{:>{}s}'.format(element,
+                mol_data['element'][i] = '{:>{}s}'.format(element,
                         util.pdb_fieldwidths[-2])
 
     def sanitize(self):
@@ -273,7 +275,7 @@ class simplepdb:
         self.renumber_atoms()
         self.renumber_residues()
         if not self.is_protein():
-            self.set_element()
+            self.set_element(self.mol_data)
             self.rename_atoms()
 
     def has_hydrogen(self):
