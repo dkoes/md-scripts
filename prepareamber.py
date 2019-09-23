@@ -423,6 +423,9 @@ if __name__ == '__main__':
     parser.add_argument('-noh', '--no_touch_hyd', dest='noh', default=False,
             action='store_true', help="Don't remove any hydrogens.")
 
+    parser.add_argument('-nc', '--net_charge', help='Optionally specify a net \
+            charge for small molecule parametrization with antechamber.')
+
     parser.add_argument('-parm', '--parm_only', action='store_true', default =
     False, help="Only generate the necessary ligand parameters, don't do the \
     preproduction MDs")
@@ -510,7 +513,9 @@ model %s\n' %args.water_model
             #if it's a mol2, store the net_charge from the input because
             #conversion to a pdb and back to a mol2 with openbabel is not
             #guaranteed to result in the same partial charges
-            if 'mol2' in ext:
+            if args.net_charge:
+                net_charge = args.net_charge
+            elif 'mol2' in ext:
                 net_charge = util.get_charge(structure)
             outpdb = base + '.pdb'
             if not args.overwrite:
