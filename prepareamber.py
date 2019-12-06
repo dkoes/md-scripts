@@ -489,7 +489,7 @@ model %s\n' %args.water_model
             if not args.overwrite:
                 outpdb = util.get_fname(outpdb)
             try:
-                obabel[structure, '-O', outpdb]()
+                obabel[structure, '-O', outpdb, '-xn']()
             except Exception as e:
                 print 'Cannot create PDB from input, error {0} : {1}. Check \
 {2}. Aborting...\n'.format(e.errno, e.strerror, outpdb)
@@ -599,7 +599,7 @@ separate files to process with antechamber\n" % struct
             #records, element names, and the correct residue name
             if not args.noh:
                 mol_data[struct].writepdb(tempname)
-                obabel[tempname, '-O', ligname, '-h']()
+                obabel[tempname, '-O', ligname, '-h','-xn']()
                 os.remove(tempname)
                 mol_data[struct] = pdb.simplepdb(ligname)
                 mol_data[struct].sanitize()
