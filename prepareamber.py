@@ -11,7 +11,7 @@ try:
 except ImportError:
     raise ImportError('Check that obabel is on your path')
 try:
-    from plumbum.cmd import antechamber, pdb4amber, tleap, pmemd_cuda, match_atomname
+    from plumbum.cmd import antechamber, pdb4amber, tleap, pmemd_cuda
 except ImportError as e:
     print e
     raise ImportError('Check that AMBER binaries are on your path')
@@ -20,9 +20,17 @@ try:
     from plumbum.cmd import parmchk
 except ImportError:
     try:
-        from plumbum.cmd import parmchk2
+        from plumbum.cmd import parmchk2 as parmchk
     except ImportError:
         raise ImportError('Check parmchk[2] on your path')
+
+try:
+    from plumbum.cmd import match_atomname
+except ImportError:
+    raise ImportError('Check match_atomname (one of the antechamber-related'
+            ' AmberTools packages) has been built - starting with AmberTools18 it'
+            ' is not built by default, but can be built manually from' 
+            ' $AMBERHOME/AmberTools/src/antechamber/')
 
 class Tee(object):
     '''For runfile, duplicate stdout to file'''
@@ -290,19 +298,31 @@ def do_antechamber(fname, net_charge, ff, molname, base = ''):
     ext = os.path.splitext(fname)[-1]
     ext = ext.lstrip('.')
     mol2 = base + '_amber.mol2'
+    #TODO: known issues with phosphates (see PDB: 2PQC) when getting the net
+    #charge from Gasteiger charges computed with Open Babel
     try:
         command = antechamber['-i', fname, '-fi', ext, '-o', mol2, '-fo', 'mol2', '-c',
                 'bcc', '-nc', str(net_charge), '-s', '2']
         runfile.writeln(command)
         command()
     except Exception as e:
-        try:
-            net_charge = -1
-            command = antechamber['-i', fname, '-fi', ext, '-o', mol2, '-fo', 'mol2', '-c',
-                    'bcc', '-nc', str(net_charge), '-s', '2']
-            runfile.writeln(command)
-            command()
-        except Exception as e:
+        passed = False
+        charges = []
+        if net_charge != 0:
+            charges.append(0)
+        if net_charge != -1:
+            charges.append(-1)
+        for charge in charges:
+            try:
+                command = antechamber['-i', fname, '-fi', ext, '-o', mol2, '-fo', 'mol2', '-c',
+                        'bcc', '-nc', str(charge), '-s', '2']
+                runfile.writeln(command)
+                command()
+                passed = True
+                break
+            except Exception as e:
+                pass
+        if not passed:
             print 'Antechamber failed. Check {0} structure. Aborting...\n'.format(fname)
             sys.exit()
 
@@ -336,7 +356,7 @@ def set_matches(fname, libs, reslist, orphaned_res, mol, force=False):
     molatoms = set([name.strip() for name in mol.mol_data['atomname']])
     if not set(libatoms).issubset(molatoms) or ext == 'prep' and not force:            
         matches = set([])
-        print "Unit(s) %s missing atoms: %s"% (' '.join(units), ' '.join(set(libatoms) - molatoms))
+        print "Unit(s) %s defines atoms that differ from undefined residue: %s"% (' '.join(units), ' '.join(set(libatoms) - molatoms))
     if matches:
         #redefine a unit iff found in a user-provided lib, but warn the user about the
         #duplication. don't redefine if found locally. 
@@ -402,6 +422,9 @@ if __name__ == '__main__':
 
     parser.add_argument('-noh', '--no_touch_hyd', dest='noh', default=False,
             action='store_true', help="Don't remove any hydrogens.")
+
+    parser.add_argument('-nc', '--net_charge', help='Optionally specify a net \
+            charge for small molecule parametrization with antechamber.')
 
     parser.add_argument('-parm', '--parm_only', action='store_true', default =
     False, help="Only generate the necessary ligand parameters, don't do the \
@@ -479,12 +502,21 @@ model %s\n' %args.water_model
     #one from what was provided using obabel, choosing a filename that will not
     #overwrite anything in the directory (optionally)
     for structure in args.structures:
+        net_charge = None
         #the "structure" string in the args.structure list will be updated so
         #that it corresponds to the PDB we should use for subsequent steps
         assert os.path.isfile(structure),'%s does not exist\n' % structure
         #"base" is the base filename (no extension) from which others will be derived
         base = util.get_base(structure)
-        if 'pdb' not in os.path.splitext(structure)[-1]:
+        ext = os.path.splitext(structure)[-1]
+        if 'pdb' not in ext:
+            #if it's a mol2, store the net_charge from the input because
+            #conversion to a pdb and back to a mol2 with openbabel is not
+            #guaranteed to result in the same partial charges
+            if args.net_charge:
+                net_charge = args.net_charge
+            elif 'mol2' in ext:
+                net_charge = util.get_charge(structure)
             outpdb = base + '.pdb'
             if not args.overwrite:
                 outpdb = util.get_fname(outpdb)
@@ -611,11 +643,14 @@ separate files to process with antechamber\n" % struct
             idx = args.structures.index(struct)
             args.structures[idx] = ligname
             mol_data[ligname] = mol_data[struct]
-            #get gasteiger charges
-            obabel[ligname, '-O', mol2]()
-            net_charge = util.get_charge(mol2)
+            #only compute if we didn't already get a value using an original mol2
+            if net_charge is None:
+                obabel[ligname, '-O', mol2]()
+                net_charge = util.get_charge(mol2)
             #run antechamber
             print 'Parametrizing unit %s with antechamber.\n' % ' '.join(orphaned_res)
+            if util.is_secret_peptide(mol_data[ligname]):
+                print 'Warning: the ligand %s maybe actually be a peptide. If antechamber fails, check the residue names\n' %ligname
             do_antechamber(ligname, net_charge, ff, molname, base)
             #add the libraries created in the last step to the libs list
             libs.add(base + '.lib')
