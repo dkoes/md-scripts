@@ -63,7 +63,7 @@ selection = model.select_atoms(args.selection)
 
 current = [(0, selection.positions)]
 
-for i in range(args.size-1):
+for i in xrange(args.size-1):
 	add_next_farthest(current, model, selection)
 
 name = splitext(basename(args.topology))[0]
@@ -76,8 +76,8 @@ for (frame,coords) in current:
 
 #print out frame numbers and their respective cnts
 (cnts,rmsds) = compute_cluster_sizes(current,model,selection)
-for i in range(len(current)):
+for i in xrange(len(current)):
 	(frame,coords) = current[i]
 	cnt = cnts[i]
 	rmsd = rmsds[i]
-	print('%d:\t%d\t%.3f' % (frame,cnt,rmsd))
+	print '%d:\t%d\t%.3f' % (frame,cnt,rmsd)

@@ -1,6 +1,6 @@
 #!/usr/bin/python
 import os, re, math
-from itertools import zip_longest
+from itertools import izip_longest
 
 #Basic utilities used by simplepdb or prepareamber that are generally useful and
 #not limited in their functionality to the simplepdb class
@@ -27,7 +27,7 @@ def get_dist(r1, r2):
         try:
             lens.append(len(val))
         except TypeError as e:
-            print(e)
+            print e
             sys.exit()
     assert lens[0] == lens[1]
     total = 0
@@ -77,7 +77,7 @@ def make_parser(pdb_fieldwidths):
     '''
     cuts = tuple(cut for cut in accumulate(abs(fw) for fw in pdb_fieldwidths))
     pads = tuple(fw < 0 for fw in pdb_fieldwidths)
-    flds = tuple(zip_longest(pads, (0,)+cuts, cuts))[:-1]
+    flds = tuple(izip_longest(pads, (0,)+cuts, cuts))[:-1]
     parse = lambda line: [line[i:j].rstrip('\n') for pad, i, j in flds if not pad]
     return parse
 
@@ -260,7 +260,7 @@ def get_available_res(ff=''):
     otherwise a generic set is returned based on ff14SB
     '''
     if ff and not os.path.isfile(ff):
-        print('Force field not found.\n')
+        print 'Force field not found.\n'
         ff = ''
     if ff:
         units = []

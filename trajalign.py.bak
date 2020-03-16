@@ -9,7 +9,7 @@ import sys
 # <topology> <trajectory> <reference> <output traj>
 
 if len(sys.argv) != 5:
-	print("Need  <topology> <trajectory> <reference> <output traj>")
+	print "Need  <topology> <trajectory> <reference> <output traj>"
 	sys.exit(-1)
 	
 trj = Universe(sys.argv[1],sys.argv[2])
