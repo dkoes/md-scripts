@@ -55,7 +55,7 @@ np.set_printoptions(threshold=np.inf,precision=2)
 cutoff = 2.0
 cnts = np.array([len(row[row < cutoff]) for row in rmat])
 pos = cnts.argmax()
-print "Frame %d is within %.2f of %d frames" % (pos, cutoff, cnts[pos])
+print("Frame %d is within %.2f of %d frames" % (pos, cutoff, cnts[pos]))
 
 import matplotlib.pylab as plt
 
