@@ -38,7 +38,7 @@ sel = args.selection
 n = u1.trajectory.n_frames
 
 div = args.step
-rmat = np.zeros((int(n/div),int(n/div)))
+rmat = np.zeros((n//div,n//div))
 
 sel1 = u1.select_atoms(sel)
 sel2 = u2.select_atoms(sel)
