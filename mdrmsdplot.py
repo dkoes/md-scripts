@@ -46,7 +46,7 @@ sel2 = u2.select_atoms(sel)
 for t1 in u1.trajectory[::div]:
     for t2 in u2.trajectory[::div]:
         if t1.frame < t2.frame:
-            rmat[int(t2.frame/div), int(t1.frame/div)] = rmat[int(t1.frame/div), int(t2.frame/div)] = rmsd(sel1.positions,sel2.positions)
+            rmat[t2.frame//div, t1.frame//div] = rmat[t1.frame//div, t2.frame//div] = rmsd(sel1.positions,sel2.positions)
 
 np.set_printoptions(threshold=np.inf,precision=2)
 
