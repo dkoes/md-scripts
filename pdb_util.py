@@ -136,7 +136,7 @@ def get_libs(ff):
         else: #backup 2x
             path = os.path.dirname(os.path.dirname(os.path.realpath(f.name)))+'/lib/'
         for line in f:
-            if line.startswith('loadOff'):
+            if line.startswith('loadOff') or line.startswith('loadoff'):
                 libs.append(path + line.split()[-1])
 
     return libs

@@ -46,6 +46,20 @@ class Tee(object):
             self.file.flush()
         
 runfile = Tee() #a global variable so I don't have to pass it around
+
+def find_ff(amberhome, ffname):
+    if os.path.isfile(amberhome + '/dat/leap/cmd/' + ffname):
+        ff = amberhome + '/dat/leap/cmd/' + ffname
+    elif os.path.isfile(amberhome + '/dat/leap/cmd/leaprc.protein.' + ffname):
+        ff = amberhome + '/dat/leap/cmd/leaprc.protein.' + ffname            
+    elif os.path.isfile(amberhome + '/dat/leap/cmd/oldff/' + ffname):
+        ff = amberhome + '/dat/leap/cmd/oldff/' + ffname
+    elif os.path.isfile(amberhome + '/dat/leap/cmd/oldff/leaprc.' + ffname):
+        ff = amberhome + '/dat/leap/cmd/oldff/leaprc.' + ffname            
+    else:
+        print("Warning: force field %s not found in %s! This is likely to cause \
+problems later.\n"%(ffname,amberhome))
+    return ff
         
 def get_cmd(input_str):
     cmd_dict = {'.frcmod' : 'loadamberparams', '.lib' : 'loadoff', '.off' : 
@@ -84,8 +98,9 @@ def make_amber_parm(fname, base, ff, molname='', water_model = '',
     if not molname: molname = fname[:3].upper()
 
     with open(base + '.tleap', 'w') as leap_input:
-        leap_input.write('source ' + ff + '\n' + 
-                'source leaprc.gaff\n')
+        for name in ff:
+            leap_input.write('source %s\n' %name)
+        leap_input.write('source leaprc.gaff\n')
                 
         if water_model: # source before loading structures
             water_nickname = get_water_nickname(water_model)
@@ -404,6 +419,9 @@ if __name__ == '__main__':
     parser.add_argument('-ff', '--force_field', default='leaprc.protein.ff15ipq',
             help='Force field; defaults to leaprc.protein.ff15ipq.')
 
+    parser.add_argument('-eff', '--extra_force_field', default='',
+            help='Extra force fields (e.g. DNA, lipids); defaults to null')
+
     parser.add_argument('-t', '--temperature', default=300, help='Simulation \
     temperature; defaults to 300K.')
 
@@ -452,17 +470,8 @@ if __name__ == '__main__':
         print("Warning: AMBERHOME is not set! This is likely to cause problems \
         later.\n")
     else:
-        if os.path.isfile(amberhome + '/dat/leap/cmd/' + args.force_field):
-            ff = amberhome + '/dat/leap/cmd/' + args.force_field
-        elif os.path.isfile(amberhome + '/dat/leap/cmd/leaprc.protein.' + args.force_field):
-            ff = amberhome + '/dat/leap/cmd/leaprc.protein.' + args.force_field            
-        elif os.path.isfile(amberhome + '/dat/leap/cmd/oldff/' + args.force_field):
-            ff = amberhome + '/dat/leap/cmd/oldff/' + args.force_field
-        elif os.path.isfile(amberhome + '/dat/leap/cmd/oldff/leaprc.' + args.force_field):
-            ff = amberhome + '/dat/leap/cmd/oldff/leaprc.' + args.force_field            
-        else:
-            print("Warning: force field %s not found in %s! This is likely to cause \
-problems later.\n"%(args.force_field,amberhome))
+        ff = find_ff(amberhome, args.force_field)
+        nff = find_ff(amberhome, args.extra_force_field)
 
     #Find out which ions are defined with our water model
     ion_params = []
@@ -491,7 +500,8 @@ model %s\n' %args.water_model
     #do we have nonstandard residues?
     mol_data = {}
     nonstandard_res = {}
-    standard_res = util.get_available_res(ff)
+    standard_res = util.get_available_res(ff).union(util.get_available_res(nff))
+    ff = [ff, nff]
     #pdb4amber seems to delete mercury (HG) along with hydrogens; for now my
     #hacky fix is to store the relevant atom info if mercury is present and add
     #the mercury back in after stripping...I'm preemptively doing this for
