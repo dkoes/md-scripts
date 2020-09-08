@@ -48,6 +48,7 @@ class Tee(object):
 runfile = Tee() #a global variable so I don't have to pass it around
 
 def find_ff(amberhome, ffname):
+    ff = ''
     if os.path.isfile(amberhome + '/dat/leap/cmd/' + ffname):
         ff = amberhome + '/dat/leap/cmd/' + ffname
     elif os.path.isfile(amberhome + '/dat/leap/cmd/leaprc.protein.' + ffname):
@@ -471,7 +472,10 @@ if __name__ == '__main__':
         later.\n")
     else:
         ff = find_ff(amberhome, args.force_field)
-        nff = find_ff(amberhome, args.extra_force_field)
+        if args.extra_force_field:
+            nff = find_ff(amberhome, args.extra_force_field)
+        else:
+            nff = ''
 
     #Find out which ions are defined with our water model
     ion_params = []
@@ -500,8 +504,11 @@ model %s\n' %args.water_model
     #do we have nonstandard residues?
     mol_data = {}
     nonstandard_res = {}
-    standard_res = util.get_available_res(ff).union(util.get_available_res(nff))
-    ff = [ff, nff]
+    standard_res = util.get_available_res(ff)
+    ff = [ff]
+    if nff:
+        standard_res = standard_res.union(util.get_available_res(nff))
+        ff = ff.append(nff)
     #pdb4amber seems to delete mercury (HG) along with hydrogens; for now my
     #hacky fix is to store the relevant atom info if mercury is present and add
     #the mercury back in after stripping...I'm preemptively doing this for
