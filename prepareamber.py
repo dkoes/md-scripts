@@ -368,8 +368,11 @@ def set_matches(fname, libs, reslist, orphaned_res, mol, force=False):
                     else:
                         atomcopy = False
                 elif atomcopy:
-                    libatoms.append(line.split()[0].strip('"'))
+                    aname = line.split()[0].strip('"')
+                    if not aname.startswith("H"): #ignore hydrogen
+                        libatoms.append(aname)
     molatoms = set([name.strip() for name in mol.mol_data['atomname']])
+    
     if not set(libatoms).issubset(molatoms) or ext == 'prep' and not force:            
         matches = set([])
         print("Unit(s) %s defines atoms that differ from undefined residue: %s"% (' '.join(units), ' '.join(set(libatoms) - molatoms)))
