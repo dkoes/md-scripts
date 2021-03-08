@@ -32,7 +32,7 @@ class simplepdb:
         provided that could be used to construct a reasonable molecule.
         '''
         if isinstance(other, self.__class__):
-            for k,v in other.__dict__.iteritems():
+            for k,v in other.__dict__.items():
                 setattr(self, k, deepcopy(v))
         else:
             assert os.path.isfile(other), 'simplepdb constructor requires \
@@ -41,6 +41,8 @@ class simplepdb:
             self.mol_data = self.parse_pdb(other)
             self.ters,self.connect = self.get_ters_and_connect(other)
             self.natoms = len(self.mol_data['atomnum'])
+            if self.natoms == 0:
+                print("WARNING: no atoms in molecule.\n")
 
     def __eq__(self, other):
         '''
@@ -72,7 +74,7 @@ class simplepdb:
                 fieldlist = [line[i].strip() for line in mol_data_list]
             mol_data[field] = fieldlist
         if not mol_data['element']:
-            mol_data = set_element(mol_data)
+            self.set_element(mol_data)
         return mol_data
 
     def get_ters_and_connect(self, pdb):
@@ -112,19 +114,19 @@ class simplepdb:
         '''
         info = []
         resnums = []
-        for key,value in field_dict.iteritems():
-            assert key in self.mol_data.keys(), 'Invalid residue identifier\n'
+        for key,value in field_dict.items():
+            assert key in list(self.mol_data.keys()), 'Invalid residue identifier\n'
             indices = [i for i,e in enumerate(self.mol_data[key]) if e==value]
             for index in indices:
                 resnum = self.mol_data['resnum'][index]
                 if resnum not in resnums:
                     resnums.append(resnum)
                     info.append({})
-                    for key in self.mol_data.keys():
+                    for key in list(self.mol_data.keys()):
                         info[-1][key] = [self.mol_data[key][index]]
                 else:
                     res_index = resnums.index(resnum)
-                    for key in self.mol_data.keys():
+                    for key in list(self.mol_data.keys()):
                         info[res_index][key].append(self.mol_data[key][index])
         return info
 
@@ -162,7 +164,7 @@ class simplepdb:
         else:
             assert res_info['resnum'][0] > 0, 'Residue numbers must be positive integers\n'
             assert res_info['resnum'][0] not in self.mol_data['resnum'], 'Residue number %d already exists\n' %res_info['resnum'][0]
-        for key,value in self.mol_data.iteritems():
+        for key,value in self.mol_data.items():
             value += res_info[key]
         self.natoms += len(res_info['resnum'])
 
@@ -178,8 +180,8 @@ class simplepdb:
                 unsorted_resmap[resnum] = [old_idx]
             else:
                 unsorted_resmap[resnum].append(old_idx)
-        resmap = collections.OrderedDict(sorted(unsorted_resmap.items(), key=lambda t: t[0]))
-        new_indices = list(itertools.chain.from_iterable(resmap.values()))
+        resmap = collections.OrderedDict(sorted(list(unsorted_resmap.items()), key=lambda t: t[0]))
+        new_indices = list(itertools.chain.from_iterable(list(resmap.values())))
         new_mol_data = {}
         for key in self.mol_data:
             new_mol_data[key] = [self.mol_data[key][i] for i in new_indices]
@@ -200,11 +202,11 @@ class simplepdb:
 
         #TODO: ugly
         new_connect = collections.OrderedDict()
-        for atom,bonds in self.connect.items():
+        for atom,bonds in list(self.connect.items()):
             if atom in mapping:
                 new_connect[mapping[atom]] = bonds
         
-        for atom,bonds in new_connect.items():
+        for atom,bonds in list(new_connect.items()):
             for bond in bonds:
                 if bond in mapping:
                     idx = bonds.index(bond)
@@ -253,14 +255,14 @@ class simplepdb:
             '{:>{}s}'.format(self.mol_data['atomname'][i],
                     util.pdb_fieldwidths[3])
     
-    def set_element(self):
+    def set_element(self, mol_data):
         '''
         Set atom element based on atom name, but only if element not set.
         '''
-        if not self.mol_data['element']:
-            for i,name in enumerate(self.mol_data['atomname']):
+        if not mol_data['element']:
+            for i,name in enumerate(mol_data['atomname']):
                 element = ''.join([char for char in name if char.isalpha()])
-                self.mol_data['element'][i] = '{:>{}s}'.format(element,
+                mol_data['element'][i] = '{:>{}s}'.format(element,
                         util.pdb_fieldwidths[-2])
 
     def sanitize(self):
@@ -273,7 +275,7 @@ class simplepdb:
         self.renumber_atoms()
         self.renumber_residues()
         if not self.is_protein():
-            self.set_element()
+            self.set_element(self.mol_data)
             self.rename_atoms()
 
     def has_hydrogen(self):
@@ -289,7 +291,7 @@ class simplepdb:
         h_indices = [i for i,elem in enumerate(self.mol_data['element']) if elem.strip() ==
                 'H']
         new_mol_data = {}
-        for key in self.mol_data.keys():
+        for key in list(self.mol_data.keys()):
             new_mol_data[key] = [self.mol_data[key][i] for i in
                     range(len(self.mol_data[key])) if i not in h_indices]
         self.mol_data = new_mol_data
@@ -311,7 +313,7 @@ class simplepdb:
             atom_ids.append(str(self.mol_data['resnum'][i]) +
                     self.mol_data['atomname'][i])
         counter = collections.Counter(atom_ids)
-        if any(t > 1 for t in counter.values()):
+        if any(t > 1 for t in list(counter.values())):
             return False
         return True
 
@@ -387,7 +389,7 @@ class simplepdb:
                 start_res = mol.mol_data['resnum'][-1]+1
 
             for mol in mols:
-                for atom,bonds in mol.connect.items():
+                for atom,bonds in list(mol.connect.items()):
                     bonds_seen = 0
                     for bond in bonds:
                         if not bonds_seen % 4:

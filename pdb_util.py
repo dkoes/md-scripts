@@ -1,6 +1,6 @@
 #!/usr/bin/python
-import os, re
-from itertools import izip_longest
+import os, re, math
+from itertools import zip_longest
 
 #Basic utilities used by simplepdb or prepareamber that are generally useful and
 #not limited in their functionality to the simplepdb class
@@ -18,6 +18,49 @@ pdb_floatfields = (8, 9, 10, 11, 12)
 pdb_intfields = (1, 6)
 pdb_connectfields = (6, 5, 5, 5, 5, 5)
 
+def get_dist(r1, r2):
+    '''
+    get distance between two atoms
+    '''
+    lens = []
+    for val in [r1, r2]:
+        try:
+            lens.append(len(val))
+        except TypeError as e:
+            print(e)
+            sys.exit()
+    assert lens[0] == lens[1]
+    total = 0
+    for i in range(lens[0]):
+        total += (r1[i] - r2[i]) * (r1[i] - r2[i])
+    return math.sqrt(total)
+
+def is_bonded(dist, thresh=2.0):
+    '''
+    bonded if dist < thresh, default from chodera lab's miniAmber which I am
+    hoping is the LEAP criterion
+    '''
+    if dist < thresh:
+        return True
+    else:
+        return False
+
+def walk_to_end(atom, atomdict, mytype):
+    '''
+    when you walk the adjacency list in atomdict, do you make it to the end?
+    '''
+    at_end = True
+    if atom[1] > 0:
+        atom_index = atom[1]
+        next_atom_type = atom[2]
+        at_end = walk_to_end(atomdict[next_atom_type][atom_index], atomdict,
+                next_atom_type)
+    elif mytype == "O" or mytype == "OXT":
+        return at_end
+    else:
+        at_end = False
+    return at_end
+
 def accumulate(iterable):
     '''
     Generate running sum from an iterator
@@ -34,7 +77,7 @@ def make_parser(pdb_fieldwidths):
     '''
     cuts = tuple(cut for cut in accumulate(abs(fw) for fw in pdb_fieldwidths))
     pads = tuple(fw < 0 for fw in pdb_fieldwidths)
-    flds = tuple(izip_longest(pads, (0,)+cuts, cuts))[:-1]
+    flds = tuple(zip_longest(pads, (0,)+cuts, cuts))[:-1]
     parse = lambda line: [line[i:j].rstrip('\n') for pad, i, j in flds if not pad]
     return parse
 
@@ -93,10 +136,53 @@ def get_libs(ff):
         else: #backup 2x
             path = os.path.dirname(os.path.dirname(os.path.realpath(f.name)))+'/lib/'
         for line in f:
-            if line.startswith('loadOff'):
+            if line.startswith('loadOff') or line.startswith('loadoff'):
                 libs.append(path + line.split()[-1])
 
     return libs
+
+def is_secret_peptide(mol_data):
+    '''
+    Checks whether something that wasn't identified as a peptide (i.e. didn't
+    have properly named amino acid residues) might have a protein backbone and
+    might need residues renamed (not by us, for now). Infers basic connectivity
+    with atomic distances, returns True if there's evidence of even one peptide
+    bond. Assumes chain is laid out in N->O order
+    '''
+    #relevant elements for identifying backbone
+    nameslist = ["N", "C", "O"]
+    #store tuple of locations of atoms for each name and whether they are
+    #bonded to the correct next guy in the chain here
+    atomdict = {}
+    for name in nameslist:
+        atomdict[name] = []
+    #which ALREADY SEEN atom name(s) should be bonded to current atom if it's in a peptide
+    last_atom = {}
+    last_atom["C"] = ["C", "N", "O"]
+    last_atom["N"] = ["C"]
+    last_atom["O"] = ["C"]
+    for i,atom in enumerate(mol_data.mol_data['element']):
+        reduced_type = ''.join(char for char in atom if char.isalpha())
+        if reduced_type in nameslist:
+            me = (mol_data.mol_data['x'][i], mol_data.mol_data['y'][i],
+                    mol_data.mol_data['z'][i])
+            atomdict[reduced_type].append([me, -1, ''])
+            be_my_neighbor = last_atom[reduced_type]
+            for maybe_neighbor in be_my_neighbor:
+                for j,seen in enumerate(atomdict[maybe_neighbor]):
+                    if maybe_neighbor == reduced_type and j == len(atomdict[reduced_type])-1:
+                        #we're at the current atom
+                        break
+                    elif is_bonded(get_dist(me, seen[0])) and atomdict[maybe_neighbor][j][1] < 0:
+                        #update my relevant neighbor to indicate our adjacency
+                        atomdict[maybe_neighbor][j][1] = len(atomdict[reduced_type]) - 1
+                        atomdict[maybe_neighbor][j][2] = reduced_type
+    result = False
+    for atom in atomdict["N"]:
+        result = walk_to_end(atom, atomdict, "N")
+        if result:
+            break
+    return result
 
 def get_units(lib):
     '''
@@ -130,11 +216,11 @@ def get_charge(mol2):
     '''
     with open(mol2, 'r') as f:
         copy = False
-        charge = 0
+        charge = 0.0
         for line in f:
             if line.startswith('@'):
                 record = line.split('>')[-1]
-                if record == 'ATOM':
+                if record.strip() == 'ATOM':
                     copy = True 
                 elif record != 'ATOM':
                     if copy == True:
@@ -143,7 +229,7 @@ def get_charge(mol2):
                         continue
             elif (copy == True):
                 charge += float(line.split()[-1])
-    return int(round(charge))
+    return int(math.ceil(charge)) if charge > 0 else int(math.floor(charge))
 
 def get_ions(libs):
     '''
@@ -174,7 +260,7 @@ def get_available_res(ff=''):
     otherwise a generic set is returned based on ff14SB
     '''
     if ff and not os.path.isfile(ff):
-        print 'Force field not found.\n'
+        print('Force field not found.\n')
         ff = ''
     if ff:
         units = []

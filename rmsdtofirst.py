@@ -50,7 +50,7 @@ for k,ts in enumerate(frames):
         diff = ref_coordinates - traj_coordinates
         r = math.sqrt(numpy.square(diff.flatten()).sum()/natoms)
     
-    print k,r
+    print(k,r)
     
 
 

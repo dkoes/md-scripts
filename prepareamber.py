@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 import argparse, re
 import simplepdb as pdb
@@ -11,18 +11,26 @@ try:
 except ImportError:
     raise ImportError('Check that obabel is on your path')
 try:
-    from plumbum.cmd import antechamber, pdb4amber, tleap, pmemd_cuda, match_atomname
+    from plumbum.cmd import antechamber, pdb4amber, tleap, pmemd_cuda
 except ImportError as e:
-    print e
+    print(e)
     raise ImportError('Check that AMBER binaries are on your path')
 
 try:
     from plumbum.cmd import parmchk
 except ImportError:
     try:
-        from plumbum.cmd import parmchk2
+        from plumbum.cmd import parmchk2 as parmchk
     except ImportError:
         raise ImportError('Check parmchk[2] on your path')
+
+try:
+    from plumbum.cmd import match_atomname
+except ImportError:
+    raise ImportError('Check match_atomname (one of the antechamber-related'
+            ' AmberTools packages) has been built - starting with AmberTools18 it'
+            ' is not built by default, but can be built manually from' 
+            ' $AMBERHOME/AmberTools/src/antechamber/')
 
 class Tee(object):
     '''For runfile, duplicate stdout to file'''
@@ -32,12 +40,27 @@ class Tee(object):
         else:
             self.file = None
     def writeln(self, data):
-        print data
+        print(data)
         if self.file:
             self.file.write(str(data)+'\n')
             self.file.flush()
         
 runfile = Tee() #a global variable so I don't have to pass it around
+
+def find_ff(amberhome, ffname):
+    ff = ''
+    if os.path.isfile(amberhome + '/dat/leap/cmd/' + ffname):
+        ff = amberhome + '/dat/leap/cmd/' + ffname
+    elif os.path.isfile(amberhome + '/dat/leap/cmd/leaprc.protein.' + ffname):
+        ff = amberhome + '/dat/leap/cmd/leaprc.protein.' + ffname            
+    elif os.path.isfile(amberhome + '/dat/leap/cmd/oldff/' + ffname):
+        ff = amberhome + '/dat/leap/cmd/oldff/' + ffname
+    elif os.path.isfile(amberhome + '/dat/leap/cmd/oldff/leaprc.' + ffname):
+        ff = amberhome + '/dat/leap/cmd/oldff/leaprc.' + ffname            
+    else:
+        print("Warning: force field %s not found in %s! This is likely to cause \
+problems later.\n"%(ffname,amberhome))
+    return ff
         
 def get_cmd(input_str):
     cmd_dict = {'.frcmod' : 'loadamberparams', '.lib' : 'loadoff', '.off' : 
@@ -76,8 +99,9 @@ def make_amber_parm(fname, base, ff, molname='', water_model = '',
     if not molname: molname = fname[:3].upper()
 
     with open(base + '.tleap', 'w') as leap_input:
-        leap_input.write('source ' + ff + '\n' + 
-                'source leaprc.gaff\n')
+        for name in ff:
+            leap_input.write('source %s\n' %name)
+        leap_input.write('source leaprc.gaff\n')
                 
         if water_model: # source before loading structures
             water_nickname = get_water_nickname(water_model)
@@ -92,7 +116,7 @@ def make_amber_parm(fname, base, ff, molname='', water_model = '',
         if extra: 
             extracmds = open(extra).read()
             extracmds = extracmds.replace('MOLNAME',molname)
-            print extracmds
+            print(extracmds)
             leap_input.write(extracmds)
         if water_model:
             leap_input.write('solvateoct '+ molname + get_waterbox(water_model) + 
@@ -290,20 +314,32 @@ def do_antechamber(fname, net_charge, ff, molname, base = ''):
     ext = os.path.splitext(fname)[-1]
     ext = ext.lstrip('.')
     mol2 = base + '_amber.mol2'
+    #TODO: known issues with phosphates (see PDB: 2PQC) when getting the net
+    #charge from Gasteiger charges computed with Open Babel
     try:
         command = antechamber['-i', fname, '-fi', ext, '-o', mol2, '-fo', 'mol2', '-c',
                 'bcc', '-nc', str(net_charge), '-s', '2']
         runfile.writeln(command)
         command()
     except Exception as e:
-        try:
-            net_charge = -1
-            command = antechamber['-i', fname, '-fi', ext, '-o', mol2, '-fo', 'mol2', '-c',
-                    'bcc', '-nc', str(net_charge), '-s', '2']
-            runfile.writeln(command)
-            command()
-        except Exception as e:
-            print 'Antechamber failed. Check {0} structure. Aborting...\n'.format(fname)
+        passed = False
+        charges = []
+        if net_charge != 0:
+            charges.append(0)
+        if net_charge != -1:
+            charges.append(-1)
+        for charge in charges:
+            try:
+                command = antechamber['-i', fname, '-fi', ext, '-o', mol2, '-fo', 'mol2', '-c',
+                        'bcc', '-nc', str(charge), '-s', '2']
+                runfile.writeln(command)
+                command()
+                passed = True
+                break
+            except Exception as e:
+                pass
+        if not passed:
+            print('Antechamber failed. Check {0} structure. Aborting...\n'.format(fname))
             sys.exit()
 
     frcmod = base + '.frcmod'
@@ -332,23 +368,26 @@ def set_matches(fname, libs, reslist, orphaned_res, mol, force=False):
                     else:
                         atomcopy = False
                 elif atomcopy:
-                    libatoms.append(line.split()[0].strip('"'))
+                    aname = line.split()[0].strip('"')
+                    if not aname.startswith("H"): #ignore hydrogen
+                        libatoms.append(aname)
     molatoms = set([name.strip() for name in mol.mol_data['atomname']])
+    
     if not set(libatoms).issubset(molatoms) or ext == 'prep' and not force:            
         matches = set([])
-        print "Unit(s) %s missing atoms: %s"% (' '.join(units), ' '.join(set(libatoms) - molatoms))
+        print("Unit(s) %s defines atoms that differ from undefined residue: %s"% (' '.join(units), ' '.join(set(libatoms) - molatoms)))
     if matches:
         #redefine a unit iff found in a user-provided lib, but warn the user about the
         #duplication. don't redefine if found locally. 
         if not matches.intersection(orphaned_res) and not force:
-            print 'Unit %s found in %s defined previously, \
+            print('Unit %s found in %s defined previously, \
             skipping to avoid redefinition\n' % (' '.join(match for match in
-                matches), fname)                
+                matches), fname))                
         else:
             if not matches.intersection(orphaned_res):
-                print 'Unit %s found in %s defined previously, \
+                print('Unit %s found in %s defined previously, \
                 adding user-provided lib but redefinition may cause problems\n' \
-                % (' '.join(match for match in matches), fname)
+                % (' '.join(match for match in matches), fname))
             libs.add(fname)
             frcmod = util.get_base(fname) + '.frcmod'
             if os.path.isfile(frcmod):
@@ -384,6 +423,9 @@ if __name__ == '__main__':
     parser.add_argument('-ff', '--force_field', default='leaprc.protein.ff15ipq',
             help='Force field; defaults to leaprc.protein.ff15ipq.')
 
+    parser.add_argument('-eff', '--extra_force_field', default='',
+            help='Extra force fields (e.g. DNA, lipids); defaults to null')
+
     parser.add_argument('-t', '--temperature', default=300, help='Simulation \
     temperature; defaults to 300K.')
 
@@ -402,6 +444,9 @@ if __name__ == '__main__':
 
     parser.add_argument('-noh', '--no_touch_hyd', dest='noh', default=False,
             action='store_true', help="Don't remove any hydrogens.")
+
+    parser.add_argument('-nc', '--net_charge', help='Optionally specify a net \
+            charge for small molecule parametrization with antechamber.')
 
     parser.add_argument('-parm', '--parm_only', action='store_true', default =
     False, help="Only generate the necessary ligand parameters, don't do the \
@@ -426,20 +471,14 @@ if __name__ == '__main__':
     #Check whether AMBERHOME is set and the desired force field is available
     amberhome = os.environ['AMBERHOME']
     if not amberhome:
-        print "Warning: AMBERHOME is not set! This is likely to cause problems \
-        later.\n"
+        print("Warning: AMBERHOME is not set! This is likely to cause problems \
+        later.\n")
     else:
-        if os.path.isfile(amberhome + '/dat/leap/cmd/' + args.force_field):
-            ff = amberhome + '/dat/leap/cmd/' + args.force_field
-        elif os.path.isfile(amberhome + '/dat/leap/cmd/leaprc.protein.' + args.force_field):
-            ff = amberhome + '/dat/leap/cmd/leaprc.protein.' + args.force_field            
-        elif os.path.isfile(amberhome + '/dat/leap/cmd/oldff/' + args.force_field):
-            ff = amberhome + '/dat/leap/cmd/oldff/' + args.force_field
-        elif os.path.isfile(amberhome + '/dat/leap/cmd/oldff/leaprc.' + args.force_field):
-            ff = amberhome + '/dat/leap/cmd/oldff/leaprc.' + args.force_field            
+        ff = find_ff(amberhome, args.force_field)
+        if args.extra_force_field:
+            nff = find_ff(amberhome, args.extra_force_field)
         else:
-            print "Warning: force field %s not found in %s! This is likely to cause \
-problems later.\n"%(args.force_field,amberhome)
+            nff = ''
 
     #Find out which ions are defined with our water model
     ion_params = []
@@ -469,6 +508,10 @@ model %s\n' %args.water_model
     mol_data = {}
     nonstandard_res = {}
     standard_res = util.get_available_res(ff)
+    ff = [ff]
+    if nff:
+        standard_res = standard_res.union(util.get_available_res(nff))
+        ff = ff.append(nff)
     #pdb4amber seems to delete mercury (HG) along with hydrogens; for now my
     #hacky fix is to store the relevant atom info if mercury is present and add
     #the mercury back in after stripping...I'm preemptively doing this for
@@ -479,20 +522,29 @@ model %s\n' %args.water_model
     #one from what was provided using obabel, choosing a filename that will not
     #overwrite anything in the directory (optionally)
     for structure in args.structures:
+        net_charge = None
         #the "structure" string in the args.structure list will be updated so
         #that it corresponds to the PDB we should use for subsequent steps
         assert os.path.isfile(structure),'%s does not exist\n' % structure
         #"base" is the base filename (no extension) from which others will be derived
         base = util.get_base(structure)
-        if 'pdb' not in os.path.splitext(structure)[-1]:
+        ext = os.path.splitext(structure)[-1]
+        if 'pdb' not in ext:
+            #if it's a mol2, store the net_charge from the input because
+            #conversion to a pdb and back to a mol2 with openbabel is not
+            #guaranteed to result in the same partial charges
+            if args.net_charge:
+                net_charge = args.net_charge
+            elif 'mol2' in ext:
+                net_charge = util.get_charge(structure)
             outpdb = base + '.pdb'
             if not args.overwrite:
                 outpdb = util.get_fname(outpdb)
             try:
-                obabel[structure, '-O', outpdb]()
+                obabel[structure, '-O', outpdb, '-xn']()
             except Exception as e:
-                print 'Cannot create PDB from input, error {0} : {1}. Check \
-{2}. Aborting...\n'.format(e.errno, e.strerror, outpdb)
+                print('Cannot create PDB from input, error {0} : {1}. Check \
+{2}. Aborting...\n'.format(e.errno, e.strerror, outpdb))
                 sys.exit()
             idx = args.structures.index(structure)
             args.structures[idx] = outpdb
@@ -501,7 +553,7 @@ model %s\n' %args.water_model
         mol_data[structure] = pdb.simplepdb(structure)
         if not mol_data[structure].has_unique_names() and not mol_data[structure].is_protein():
             mol_data[structure].rename_atoms()
-            print "Renaming atoms for",structure
+            print("Renaming atoms for",structure)
         mol_res[structure] = set(mol_data[structure].mol_data['resname'])
         ion_resnames = set(ions.keys())
         ions_present = set.intersection(mol_res[structure], ion_resnames)
@@ -519,7 +571,7 @@ model %s\n' %args.water_model
     libs = set([])
     if not args.libs:
         args.libs = []
-    for struct,reslist in nonstandard_res.items():
+    for struct,reslist in list(nonstandard_res.items()):
         #track which units you don't have libs for
         orphaned_res = set(reslist)
         base = util.get_base(struct)
@@ -548,7 +600,7 @@ model %s\n' %args.water_model
 cofactors\n" % ' '.join(orphaned_res)
 
         if is_protein and reslist:
-            print "NOT RUNNING pdb4amber due to presence of modified residues."
+            print("NOT RUNNING pdb4amber due to presence of modified residues.")
         elif is_protein and not args.noh: 
             fname = base + '_amber.pdb'
             command = pdb4amber['-y', '-i', struct, '-o', fname]
@@ -557,7 +609,7 @@ cofactors\n" % ' '.join(orphaned_res)
             idx = args.structures.index(struct)
             args.structures[idx] = fname
             if not args.uninteractive:
-                raw_input('Read the above messages and then press any key to continue; note that prepareamber will insert any missing TER records but does not add ACE/NME caps...\n')
+                input('Read the above messages and then press any key to continue; note that prepareamber will insert any missing TER records but does not add ACE/NME caps...\n')
             #TODO: I mean, we _could_ add the ACE/NME caps...
             mol_data[fname] = pdb.simplepdb(fname)
             #if there were gaps, add appropriate TERs
@@ -566,7 +618,7 @@ cofactors\n" % ' '.join(orphaned_res)
                 if m:
                     gap_res = m.group(2)
                     mol_data[fname].add_ter(gap_res)
-            for deleted_ion,data in metal_info[struct].iteritems():
+            for deleted_ion,data in metal_info[struct].items():
                 current_residues = set(mol_data[fname].mol_data['resname'])
                 if deleted_ion not in current_residues:
                     for res in data:
@@ -599,7 +651,7 @@ separate files to process with antechamber\n" % struct
             #records, element names, and the correct residue name
             if not args.noh:
                 mol_data[struct].writepdb(tempname)
-                obabel[tempname, '-O', ligname, '-h']()
+                obabel[tempname, '-O', ligname, '-h','-xn']()
                 os.remove(tempname)
                 mol_data[struct] = pdb.simplepdb(ligname)
                 mol_data[struct].sanitize()
@@ -611,11 +663,14 @@ separate files to process with antechamber\n" % struct
             idx = args.structures.index(struct)
             args.structures[idx] = ligname
             mol_data[ligname] = mol_data[struct]
-            #get gasteiger charges
-            obabel[ligname, '-O', mol2]()
-            net_charge = util.get_charge(mol2)
+            #only compute if we didn't already get a value using an original mol2
+            if net_charge is None:
+                obabel[ligname, '-O', mol2]()
+                net_charge = util.get_charge(mol2)
             #run antechamber
-            print 'Parametrizing unit %s with antechamber.\n' % ' '.join(orphaned_res)
+            print('Parametrizing unit %s with antechamber.\n' % ' '.join(orphaned_res))
+            if util.is_secret_peptide(mol_data[ligname]):
+                print('Warning: the ligand %s maybe actually be a peptide. If antechamber fails, check the residue names\n' %ligname)
             do_antechamber(ligname, net_charge, ff, molname, base)
             #add the libraries created in the last step to the libs list
             libs.add(base + '.lib')
