@@ -267,7 +267,13 @@ def get_available_res(ff=''):
         libs = get_libs(ff)
         for lib in libs:
             units += get_units(lib)
-        units += ['WAT', 'HOH']
+        #include residues from atomic_ions.lib
+        units += ['WAT', 'HOH', "AG", "AL", "Ag", "BA", "BR", "Be", "CA", "CD", 
+        "CE", "CL", "CO", "CR", "CS", "CU", "CU1", "Ce", "Cl-", "Cr", "Dy", 
+        "EU", "EU3", "Er", "F", "FE", "FE2", "GD3", "H3O+", "HE+", "HG", "HZ+", 
+        "Hf", "IN", "IOD", "K+", "K", "LA", "LI", "LU", "MG", "MN", "NA", "NH4", 
+        "NI", "Na+", "Nd", "PB", "PD", "PR", "PT", "Pu", "RB", "Ra", "SM", "SR", 
+        "Sm", "Sn", "TB", "TL", "Th", "Tl", "Tm", "U4+", "V2+", "Y", "YB2", "ZN", "Zr"]
         units = set(units)
         with open(ff, 'r') as f:
             for line in f: # look for aliased residues
@@ -285,7 +291,13 @@ def get_available_res(ff=''):
         'NPRO', 'NCYS', 'NCYX', 'NMET', 'NME', 'NHE', 'ACE', 'CALA', 'CGLY', 
         'CSER', 'CTHR', 'CLEU', 'CILE', 'CVAL', 'CASN', 'CGLN', 'CARG', 'CHID', 
         'CHIE', 'CHIP', 'CTRP', 'CPHE', 'CTYR', 'CGLU', 'CASP', 'CLYS', 'CPRO', 
-        'CCYS', 'CCYX', 'CMET', 'CHYP', 'WAT', 'HOH'])
+        'CCYS', 'CCYX', 'CMET', 'CHYP']+ ['WAT', 'HOH', "AG", "AL", "Ag", "BA", 
+        "BR", "Be", "CA", "CD", "CE", "CL", "CO", "CR", "CS", "CU", "CU1", "Ce", 
+        "Cl-", "Cr", "Dy", "EU", "EU3", "Er", "F", "FE", "FE2", "GD3", "H3O+", 
+        "HE+", "HG", "HZ+", "Hf", "IN", "IOD", "K+", "K", "LA", "LI", "LU", 
+        "MG", "MN", "NA", "NH4", "NI", "Na+", "Nd", "PB", "PD", "PR", "PT", 
+        "Pu", "RB", "Ra", "SM", "SR", "Sm", "Sn", "TB", "TL", "Th", "Tl", "Tm", 
+        "U4+", "V2+", "Y", "YB2", "ZN", "Zr"])
 
 #ions and cofactors that have parameters at the AMBER parameter database
 #http://research.bmh.manchester.ac.uk/bryce/amber
