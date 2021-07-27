@@ -14,16 +14,21 @@ parser.add_argument("-n",type=int,default=10)
 
 args = parser.parse_args()
 
-model = MDAnalysis.Universe(args.topology,args.trajectory)
+format = None
+if args.trajectory.endswith('.nc'):
+    format = "ncdf" #not sure why .nc isn't auto recognized any more
+model = MDAnalysis.Universe(args.topology,args.trajectory,format=format)
 
-basename,ext = splitext(basename(args.trajectory))
+basename,ext = splitext(args.trajectory)
+if ext == '.nc':
+    ext = '.ncdf'
 nframes = model.trajectory.n_frames
 interval = int(nframes/args.n)
 extra = nframes%args.n
 
 for start in range(0,nframes,interval):
 	end = start+interval
-	if end+interval+extra >= nframes:
+	if end+interval+extra > nframes:
 		end = nframes
 	fname = '%s_%d_%d%s'%(basename,start,end,ext)
 	with MDAnalysis.Writer(fname, model.atoms.n_atoms) as W:
