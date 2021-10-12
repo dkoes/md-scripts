@@ -707,6 +707,7 @@ separate files to process with antechamber\n" % struct
         mol_data[args.structures[0]].writepdb(complex_name, final_mols)
     elif complex_name != args.structures[0]:
         mol_data[args.structures[0]].writepdb(complex_name)    
+        
     base = util.get_base(complex_name)
     #make initial parameters files
     make_amber_parm(complex_name, base, ff, 'complex', args.water_model, args.water_dist, libs, extra=args.extra)

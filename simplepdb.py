@@ -90,7 +90,7 @@ class simplepdb:
                 if line.startswith('TER'):
                     #this includes the insertion code, if applicable, so the
                     #ters have to be strings rather than ints
-                    ters.append(last_line[23:27].strip())
+                    ters.append(last_line[22:27].strip())
                 elif line.startswith('CONECT'):
                     contents = parse(line)
                     atom = int(contents[1])
@@ -102,7 +102,7 @@ class simplepdb:
                         connect[atom] = connect[atom] + bonds
                 elif line.startswith('ATOM') or line.startswith('HETATM'):
                     last_line = line
-        ter = last_line[23:27].strip()
+        ter = last_line[22:27].strip()
         if ter and not ter in ters:
             ters.append(ter)
         return ters,connect
