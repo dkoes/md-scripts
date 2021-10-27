@@ -38,15 +38,17 @@ sel = args.selection
 n = u1.trajectory.n_frames
 
 div = args.step
-rmat = np.zeros((n//div,n//div))
+downn = n//div 
+if n % div != 0:
+    downn += 1
+rmat = np.zeros((downn,downn))
 
 sel1 = u1.select_atoms(sel)
 sel2 = u2.select_atoms(sel)
 #print len(sel1),len(sel2)
 for t1 in u1.trajectory[::div]:
-    for t2 in u2.trajectory[::div]:
-        if t1.frame < t2.frame:
-            rmat[t2.frame//div, t1.frame//div] = rmat[t1.frame//div, t2.frame//div] = rmsd(sel1.positions,sel2.positions)
+    for t2 in u2.trajectory[t1.frame::div]:
+        rmat[t2.frame//div, t1.frame//div] = rmat[t1.frame//div, t2.frame//div] = rmsd(sel1.positions,sel2.positions)
 
 np.set_printoptions(threshold=np.inf,precision=2)
 
