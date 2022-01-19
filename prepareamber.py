@@ -467,6 +467,11 @@ if __name__ == '__main__':
     The old script referred to this as the "timestep."')
     
     parser.add_argument('--extra', help="File with additional leap commands to apply")
+    
+    parser.add_argument('-noff', '--no_openff', action='store_true', default=False,
+    help='Do not use open force field\'s SMIRNOFF to reparameterize antechamber \
+    parameterized ligands. Default is False')
+    
     args = parser.parse_args()
 
     #Check whether AMBERHOME is set and the desired force field is available
@@ -715,7 +720,7 @@ separate files to process with antechamber\n" % struct
     base = util.get_base(complex_name)
     #make initial parameters files
     make_amber_parm(complex_name, base, ff, 'complex', args.water_model, args.water_dist, libs, extra=args.extra)
-    if (len(ante_lig) > 0):
+    if (len(ante_lig) > 0 and not args.no_openff):
         # Only do reparm if there are ligs to reparm    
         reparm(ante_lig, base)
     #run the two minimization and two pre-production  MDs
