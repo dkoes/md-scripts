@@ -3,6 +3,7 @@
 import argparse, re
 import simplepdb as pdb
 import pdb_util as util
+from reparm_ligand import reparm  
 import os, shutil, glob, sys, logging
 from plumbum import FG, TEE
 from plumbum.cmd import sed, grep, cut, uniq, wc
@@ -569,6 +570,8 @@ model %s\n' %args.water_model
     #if nonstandard residues, do we have the necessary library files? 
     #check for prep, lib, and off; just add the frcmod if there is one
     libs = set([])
+    # store the ligands that were parameterized by antechamber so they can be reparameterized by SMIRNOFF
+    ante_lig = []
     if not args.libs:
         args.libs = []
     for struct,reslist in list(nonstandard_res.items()):
@@ -682,6 +685,7 @@ separate files to process with antechamber\n" % struct
             runfile.writeln(command)
             command()
             mol_data[ligname] = pdb.simplepdb(ligname)
+            ante_lig.append((ligname, mol2))
 
     #always add requeted frcmod files as they may apply to multiple ligands
     for lib in args.libs:
@@ -711,6 +715,9 @@ separate files to process with antechamber\n" % struct
     base = util.get_base(complex_name)
     #make initial parameters files
     make_amber_parm(complex_name, base, ff, 'complex', args.water_model, args.water_dist, libs, extra=args.extra)
+    if (len(ante_lig) > 0):
+        # Only do reparm if there are ligs to reparm    
+        reparm(ante_lig, base)
     #run the two minimization and two pre-production  MDs
     if not args.parm_only: 
         do_amber_preproduction(complex_name, base, args, ff)
