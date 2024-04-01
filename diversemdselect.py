@@ -58,7 +58,10 @@ parser.add_argument("--output_selection",default="not (resname WAT or resname HO
 
 args = parser.parse_args()
 
-model = MDAnalysis.Universe(args.topology,args.trajectory)
+import parmed
+top = parmed.load_file(args.topology)
+model = MDAnalysis.Universe(top,args.trajectory)
+#model = MDAnalysis.Universe(args.topology,args.trajectory)
 selection = model.select_atoms(args.selection)
 
 current = [(0, selection.positions)]

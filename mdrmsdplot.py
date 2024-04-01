@@ -7,6 +7,8 @@ from MDAnalysis.analysis.rms import *
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 import seaborn as sns
 import argparse
+import multiprocessing
+from functools import partial
 
 parser = argparse.ArgumentParser(description='Generate pairwise RMSD heatmap plot.\nIMPORTANT: assumes an aligned input')
 parser.add_argument("topology")
@@ -45,10 +47,26 @@ rmat = np.zeros((downn,downn))
 
 sel1 = u1.select_atoms(sel)
 sel2 = u2.select_atoms(sel)
-#print len(sel1),len(sel2)
-for t1 in u1.trajectory[::div]:
+
+def rmsd_row(frame_index, u1, u2, sel1, sel2):
+    row = []
+    t1 = u1.trajectory[frame_index]
     for t2 in u2.trajectory[t1.frame::div]:
-        rmat[t2.frame//div, t1.frame//div] = rmat[t1.frame//div, t2.frame//div] = rmsd(sel1.positions,sel2.positions)
+        row.append((t1.frame//div, t2.frame//div, rmsd(sel1.positions,sel2.positions)))
+    return row
+    
+run_per_frame = partial(rmsd_row, u1=u1, u2=u2, sel1=sel1, sel2=sel2)
+
+print('Processing')
+pool = multiprocessing.Pool()
+rows = pool.map(run_per_frame, range(0,len(u1.trajectory),div))
+pool.close()
+print('Done')
+
+for row in rows:
+    for i,j,r  in row:
+        rmat[i,j] = rmat[j,i] = r
+    
 
 np.set_printoptions(threshold=np.inf,precision=2)
 

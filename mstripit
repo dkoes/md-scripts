@@ -1,0 +1,10 @@
+#!/bin/bash
+
+#image and align a membrane simulation, provide topology and trajectory
+traj=$2
+echo "parm ${1}"
+echo "trajin $traj"
+echo "autoimage anchor :POPC"
+echo "rms first @CA"
+echo "strip :WAT outprefix stripped"
+echo "trajout ${traj%.nc}.dcd dcd" nobox
