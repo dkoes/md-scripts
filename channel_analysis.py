@@ -59,7 +59,7 @@ def compute_ion_transitions(u,ion_selection = 'resname CLA',
     print(f"Selection defining bottom of TMD has {len(bottom)} atoms")
 
     cl = u.select_atoms(ion_selection)
-    print(f'Number of ions: {len(cl)}')
+    print(f'Number of ions ({ion_selection}): {len(cl)}')
 
     tmd_t = top.positions[:,2].mean()
     tmd_b = bottom.positions[:,2].mean()
@@ -92,6 +92,7 @@ def compute_ion_transitions(u,ion_selection = 'resname CLA',
 def plot_ion_density(u,outfile=None,ion_selection=default_ion_selection,
                      bottom_selection=default_bottom_selection,
                      top_selection=default_top_selection):
+    fig = plt.figure()
     cl = u.select_atoms(ion_selection)
     top = u.select_atoms(top_selection)
     bottom = u.select_atoms(bottom_selection)
@@ -122,11 +123,13 @@ def plot_transitions(u,minrads=None,outfile=None,ion_name='Cl',
         ax1.set_ylim(0, 4)
         ax1.tick_params(axis="y", labelcolor="#1f77b4")
 
-    plt.xlabel('Frame');    
+    ax2.set_xlabel('Time (ns)');    
 
     ABC,CBA = compute_ion_transitions(u,ion_selection=ion_selection,bottom_selection=bottom_selection,top_selection=top_selection)
     plt.xlim(0,len(ABC))
     ax2.plot(ABC,color='#2ca02c',zorder=100,linewidth=3)
+    ax2.plot(CBA,color='pink',zorder=99,linewidth=1)
+
     ax2.set_zorder(2)
     ax2.set_ylabel(f'Cummulative {ion_name} Transitions',fontsize=14,color='#2ca02c')
     ax2.tick_params(axis="y", labelcolor="#2ca02c")
