@@ -54,6 +54,7 @@ def compute_ion_transitions(u,ion_selection = 'resname CLA',
     by the provided protein selections) for the specified ion.
     Returns the per-frame cummulative transition counts for both forward and backwards transitions.'''
     top = u.select_atoms(top_selection)
+    evaluate_box(u,bottom_selection,top_selection)
     print(f"Selection defining top of TMD has {len(top)} atoms")
     bottom = u.select_atoms(bottom_selection)
     print(f"Selection defining bottom of TMD has {len(bottom)} atoms")
@@ -199,28 +200,40 @@ def unique_name(u):
     
     return outprefix
         
-            
-def perform_hole_analysis(u, uref=None, outprefix=None, 
+def align_traj(u, uref, bottom_selection=default_bottom_selection, 
+                          top_selection=default_top_selection,inmem=True):
+    '''Align trajectory to top/bottom.'''
+                #make sure trajectory is aligned
+    uref.trajectory[0]
+    print("Aligning trajectory")
+    selstr = f'({top_selection}) or ({bottom_selection})'
+    sel = u.select_atoms(selstr)
+        
+    if inmem or isinstance(u.trajectory, MemoryReader):
+        align.AlignTraj(u, uref, selstr, in_memory=True).run()
+    else:
+        align.AlignTraj(u, uref, selstr, filename=f'{outprefix}_aligned.dcd', in_memory=False).run()        
+        u = mda.Universe(u.filename ,f'{outprefix}_aligned.dcd')
+    
+    return u
+        
+def perform_hole_analysis(u, outprefix=None, 
                           bottom_selection=default_bottom_selection, 
                           top_selection=default_top_selection,
                           res_offset=default_res_offset,
-                          hole_exe='hole',inmem=True):
+                          hole_exe='hole'):
     '''Run the hole analysis.  Will create a pickle file that it will reload if already present.
-       Will also create a vmd script for visualization and, if not inmem, an aligned trajectory.
+       Assumes aligned trajecotry
+       Will also create a vmd script for visualization.
        u - MDAnalysis universe
-       uref - reference for alignment (default: u)
        outprefix - prefix to use for created files
        bottom_selection - bottom of tmd
        top_selection - top of tmd
        res_offset - number to add to resid to get desired labels
-       inmem - keep trajectory in memory
     '''
     if outprefix == None:
         outprefix = unique_name(u)
-    if uref == None:
-        uref = u
 
-    uref.trajectory[0]
     print(f"Using output prefix {outprefix}")
     try:
         ha = pickle.load(gzip.open(f'{outprefix}.pkl.gz'))
@@ -229,20 +242,10 @@ def perform_hole_analysis(u, uref=None, outprefix=None,
     except:
         print("No cached result found.")
     
-    
-    print("Aligning trajectory")
+
     selstr = f'({top_selection}) or ({bottom_selection})'
     sel = u.select_atoms(selstr)
-
-    #make sure trajectory is aligned
-    u.trajectory[0]
-    
-    if inmem or isinstance(u.trajectory, MemoryReader):
-        align.AlignTraj(u, uref, selstr, in_memory=True).run()
-    else:
-        align.AlignTraj(u, uref, selstr, filename=f'{outprefix}_aligned.dcd', in_memory=False).run()        
-        u = mda.Universe(u.filename ,f'{outprefix}_aligned.dcd')
-    
+        
     print("Performing hole analysis (this will take a long time)")
     pid = os.getpid() #can't use outprefix because hole will truncate long file names
     print(f"Temporary files will be created in current directory with prefix hole{pid}")
@@ -414,6 +417,34 @@ def plot_separate_combined_tmd(C,outfile=None,labels=None):
         plt.savefig(outfile,dpi=300,bbox_inches='tight')
     return fig        
     
+def plot_combined_transitions(us,outfile=None,title=None,ion_selection='resname CLA',ion_name='Cl-',bottom_selection=default_bottom_selection,top_selection=default_top_selection):
+    '''Plot all ion transitions for list of universes provided.
+       Trajectories should be aligned.'''
+        
+    ABCs = []
+    CBAs = []
+    radii = []
+    for u in us:
+        ABC,CBA = compute_ion_transitions(u,ion_selection=ion_selection,bottom_selection=bottom_selection,top_selection=top_selection)
+        ABCs.append(ABC)
+        CBAs.append(CBA)
+    
+    fig = plt.figure(figsize=(6,4))
+    plt.xlim(0,len(ABCs[0]))
+    plt.ylabel(f'Cummulative {ion_name} Transitions',fontsize=14)
+    plt.ylim(0, 60)
+    for ABC,CBA in zip(ABCs,CBAs):
+        plt.plot(ABC,color='#2ca02c',alpha=0.5,zorder=10)
+        plt.plot(CBA,color='pink',linewidth=1,alpha=0.1)
+    
+    plt.plot(np.array(ABCs).mean(axis=0),color='#2ca02c',zorder=10,linewidth=3)
+    plt.plot(np.array(CBAs).mean(axis=0),color='pink',zorder=10,linewidth=3)
+    if title:
+        plt.title(title)
+        
+    if outfile != None:
+        plt.savefig(outfile,dpi=300,bbox_inches='tight')
+    return fig    
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Generate analysis of membrane pore simulations.\nIMPORTANT: assumes a wrapped and aligned input')
@@ -430,8 +461,12 @@ if __name__ == '__main__':
     #process trajectories individually
     uref = mda.Universe(args.topology, args.trajectory[0])
     hfiles = []
+    us = []
     for i,traj in enumerate(args.trajectory):
         u = mda.Universe(args.topology, traj)
+        u = align_traj(u, uref,bottom_selection=args.bottom_selection,
+                     top_selection=args.top_selection)
+        us.append(u)
         if args.prefix == None:
             prefix = unique_name(u)
         else:
@@ -442,7 +477,7 @@ if __name__ == '__main__':
         plot_ion_density(u,f'{prefix}_POT_density.png', 'resname POT',
                             bottom_selection=args.bottom_selection, 
                             top_selection=args.top_selection)
-        ha = perform_hole_analysis(u, uref, outprefix=f'{prefix}_ha', 
+        ha = perform_hole_analysis(u, outprefix=f'{prefix}_ha', 
                           bottom_selection=args.bottom_selection, 
                           top_selection=args.top_selection,
                           res_offset=args.res_offset,
@@ -469,3 +504,14 @@ if __name__ == '__main__':
         prefix = f'{args.prefix}_{i}'    
     plot_combined_tmd(C,f'{prefix}_combined.pdf')
     plot_separate_combined_tmd(C,f'{prefix}_sep_combined.pdf')
+    
+    plot_combined_transitions(us,f'{prefix}_CLA_transitions_combined.pdf',prefix,
+                ion_selection='resname CLA',ion_name='Cl-',
+                bottom_selection=args.bottom_selection,
+                top_selection=args.top_selection)
+                
+    plot_combined_transitions(us,f'{prefix}_POT_transitions_combined.pdf',prefix,
+                ion_selection='resname POT',ion_name='K+',
+                bottom_selection=args.bottom_selection,
+                top_selection=args.top_selection)    
+    
