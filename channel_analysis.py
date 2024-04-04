@@ -197,7 +197,7 @@ def unique_name(u):
     return outprefix
         
             
-def perform_hole_analysis(u, outprefix=None, 
+def perform_hole_analysis(u, uref=None, outprefix=None, 
                           bottom_selection=default_bottom_selection, 
                           top_selection=default_top_selection,
                           res_offset=default_res_offset,
@@ -205,6 +205,7 @@ def perform_hole_analysis(u, outprefix=None,
     '''Run the hole analysis.  Will create a pickle file that it will reload if already present.
        Will also create a vmd script for visualization and, if not inmem, an aligned trajectory.
        u - MDAnalysis universe
+       uref - reference for alignment (default: u)
        outprefix - prefix to use for created files
        bottom_selection - bottom of tmd
        top_selection - top of tmd
@@ -213,7 +214,10 @@ def perform_hole_analysis(u, outprefix=None,
     '''
     if outprefix == None:
         outprefix = unique_name(u)
-    
+    if uref == None:
+        uref = u
+
+    uref.trajectory[0]
     print(f"Using output prefix {outprefix}")
     try:
         ha = pickle.load(gzip.open(f'{outprefix}.pkl.gz'))
@@ -231,9 +235,9 @@ def perform_hole_analysis(u, outprefix=None,
     u.trajectory[0]
     
     if inmem or isinstance(u.trajectory, MemoryReader):
-        align.AlignTraj(u, u, selstr, in_memory=True).run()
+        align.AlignTraj(u, uref, selstr, in_memory=True).run()
     else:
-        align.AlignTraj(u, u, selstr, filename=f'{outprefix}_aligned.dcd', in_memory=False).run()        
+        align.AlignTraj(u, uref, selstr, filename=f'{outprefix}_aligned.dcd', in_memory=False).run()        
         u = mda.Universe(u.filename ,f'{outprefix}_aligned.dcd')
     
     print("Performing hole analysis (this will take a long time)")
@@ -270,22 +274,24 @@ def plot_profile(ha,outfile=None):
     maxs = np.array([np.max(r) for r in radii])
     los = np.array([np.percentile(r,5) for r in radii])
     his = np.array([np.percentile(r,95) for r in radii])
-
-    plt.figure(figsize=(4,6))
-    plt.plot(means,zpos)
+        
+    fig = plt.figure(figsize=(4,6))
+    plt.axvline(x=2.3, color="k", linestyle="--",linewidth=1)
+    plt.axvline(x=1.75, color="red", linestyle="--",linewidth=1)    
+    plt.plot(means,zpos,zorder=15)
     plt.fill_betweenx(
         zpos,
         los,
         his,
         facecolor="lightblue",
-        alpha=0.3,
+        alpha=0.2,zorder=10
     )
     plt.fill_betweenx(
         zpos,
         means - stds,
         means + stds,
         facecolor="lightblue",
-        alpha=0.3,
+        alpha=0.3,zorder=11
     )
     #plt.plot(mins,zpos,color='lightblue',linewidth=0.5)
     #plt.plot(maxs,zpos,color='lightblue',linewidth=0.5)
@@ -293,11 +299,118 @@ def plot_profile(ha,outfile=None):
     plt.yticks(zcoords[1::2],labels[1::2]);
     plt.ylim(min(zpos),max(zpos))
     plt.xlim(0,10)
-    plt.xlabel('Pore Radius ($\mathrm{\AA}$)');
+    plt.xlabel('Pore Radius ($\mathrm{\AA}$)',fontsize=14);
     
     if outfile:
         plt.savefig(outfile,dpi=300,bbox_inches='tight')
+        
+    return fig
 
+def combine_tmd(hfiles):
+    '''Merge the tmd attribute of all the provided ha.pkl.gz.
+    radii are merged while the first ha file is used for the rest.'''
+    from types import SimpleNamespace
+    C = SimpleNamespace(tmd={})    
+    C.tmd['allradii'] = []
+    C.tmd['allradii_zpos'] = []
+    C.tmd['alllabel_coords'] = []
+    C.tmd['alllabels'] = []
+    for hfile in hfiles:
+        ha = pickle.load(gzip.open(hfile))
+        C.tmd['allradii'].append(ha.tmd['radii'])        
+        C.tmd['allradii_zpos'].append(ha.tmd['radii_zpos'])
+        C.tmd['alllabel_coords'].append(ha.tmd['label_coords'])
+        C.tmd['alllabels'].append(ha.tmd['labels'])
+        
+    C.tmd['radii'] = [np.hstack(r) for r in zip(*C.tmd['allradii'])]   
+    C.tmd['radii_zpos'] = C.tmd['allradii_zpos'][0].copy()
+    C.tmd['label_coords'] = C.tmd['alllabel_coords'][0].copy()
+    C.tmd['labels'] = C.tmd['alllabels'][0].copy()
+    return C
+    
+def plot_combined_tmd(C,outfile=None):
+    '''Given a list of ha.pkl.gz files, plot the pore profiles.'''
+
+    means = np.array([np.mean(r) for r in C.tmd['radii']])
+    stds = np.array([np.std(r) for r in C.tmd['radii']])
+    mins = np.array([np.min(r) for r in C.tmd['radii']])
+    maxs = np.array([np.max(r) for r in C.tmd['radii']])
+    los = np.array([np.percentile(r,5) for r in C.tmd['radii']])
+    his = np.array([np.percentile(r,95) for r in C.tmd['radii']])
+
+    zpos = C.tmd['radii_zpos']
+    zcoords = C.tmd['label_coords']
+    zlabels = C.tmd['labels']
+
+    fig = plt.figure(figsize=(4,6))
+    plt.axvline(x=2.3, color="k", linestyle="--",linewidth=1)
+    plt.axvline(x=1.75, color="red", linestyle="--",linewidth=1)    
+    plt.plot(means,zpos,zorder=15,color='#1f77b4',linewidth=3)
+    plt.fill_betweenx(
+        zpos,
+        los,
+        his,
+        facecolor="lightblue",
+        alpha=0.2,zorder=10
+    )
+    plt.fill_betweenx(
+        zpos,
+        means - stds,
+        means + stds,
+        facecolor="lightblue",
+        alpha=0.3,zorder=11
+    )
+
+    for R in C.tmd['allradii']:
+        m = np.array([np.mean(r) for r in R])
+        plt.plot(m,zpos,zorder=5,linewidth=1,color='#1f77b4')
+
+    plt.yticks(zcoords[1::2],zlabels[1::2]);
+    plt.ylim(min(zpos),max(zpos))
+    plt.xlim(0,10)
+    plt.xlabel('Pore Radius ($\mathrm{\AA}$)',fontsize=14)
+    
+    if outfile:
+        plt.savefig(outfile,dpi=300,bbox_inches='tight')
+    return fig
+    
+    
+def plot_separate_combined_tmd(C,outfile=None,labels=None):
+    '''Given a list of ha.pkl.gz files, plot the pore profiles.'''
+
+    zpos = C.tmd['radii_zpos']
+    zcoords = C.tmd['label_coords']
+    zlabels = C.tmd['labels']
+
+    fig = plt.figure(figsize=(4,6))
+    plt.axvline(x=2.3, color="k", linestyle="--",linewidth=1)
+    plt.axvline(x=1.75, color="red", linestyle="--",linewidth=1)  
+
+    for i,R in enumerate(C.tmd['allradii']):
+        m = np.array([np.mean(r) for r in R])
+        s = np.array([np.std(r) for r in R])
+        line = plt.plot(m,zpos,zorder=15,label=labels[i] if labels else None)[0]
+        c = line.get_color()
+        plt.fill_betweenx(
+            zpos,
+            m - s,
+            m + s,
+            color=c,
+            alpha=0.1,zorder=11
+        )
+
+
+    plt.yticks(zcoords[1::2],zlabels[1::2]);
+    plt.ylim(min(zpos),max(zpos))
+    plt.xlim(0,10)
+    plt.xlabel('Pore Radius ($\mathrm{\AA}$)',fontsize=14)
+    if labels:
+        plt.legend()
+    
+    if outfile:
+        plt.savefig(outfile,dpi=300,bbox_inches='tight')
+    return fig        
+    
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Generate analysis of membrane pore simulations.\nIMPORTANT: assumes a wrapped and aligned input')
@@ -312,6 +425,8 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     #process trajectories individually
+    uref = mda.Universe(args.topology, args.trajectory[0])
+    hfiles = []
     for i,traj in enumerate(args.trajectory):
         u = mda.Universe(args.topology, traj)
         if args.prefix == None:
@@ -324,11 +439,12 @@ if __name__ == '__main__':
         plot_ion_density(u,f'{prefix}_POT_density.png', 'resname POT',
                             bottom_selection=args.bottom_selection, 
                             top_selection=args.top_selection)
-        ha = perform_hole_analysis(u, outprefix=f'{prefix}_ha', 
+        ha = perform_hole_analysis(u, uref, outprefix=f'{prefix}_ha', 
                           bottom_selection=args.bottom_selection, 
                           top_selection=args.top_selection,
                           res_offset=args.res_offset,
                           hole_exe=args.hole_exe)
+        hfiles.append(f'{prefix}_ha.pkl.gz')
         plot_profile(ha,f'{prefix}_profile.pdf')
         plot_transitions(u,minrads=ha.tmd['min_radii'],
                      outfile=f'{prefix}_CLA_transitions.pdf',
@@ -342,3 +458,11 @@ if __name__ == '__main__':
                      ion_selection='resname POT',
                      bottom_selection=args.bottom_selection,
                      top_selection=args.top_selection)
+
+    C = combine_tmd(hfiles)
+    if args.prefix == None:
+        prefix = unique_name(uref)
+    else:
+        prefix = f'{args.prefix}_{i}'    
+    plot_combined_tmd(C,f'{prefix}_combined.pdf')
+    plot_separate_combined_tmd(C,f'{prefix}_sep_combined.pdf')
