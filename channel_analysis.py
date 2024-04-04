@@ -24,7 +24,9 @@ def evaluate_box(U,bottom_selection = default_bottom_selection,
                  top_selection = default_top_selection):
     '''Return true if the box appears to be properly wrapped with the TMD 
     roughly in the center'''
-    zdiff = U.atoms.positions[:,2].max() - U.atoms.positions[:,2].min()
+    low = U.atoms.positions[:,2].min()
+    high = U.atoms.positions[:,2].max()
+    zdiff = high-low 
     if zdiff > 220:
         print(f'Unwrapped or unexpectedly large box. zdiff: {zdiff:.2f}')
         print('''Use cpptraj to wrap the trajectory with the membrane at the center:
@@ -40,11 +42,10 @@ trajout strip.dcd dcd
     bottom = U.select_atoms(bottom_selection).positions[:,2].mean()
     mid = (top+bottom)/2
     frame = U.trajectory[0]
-    if type(frame.dimensions) != type(None):
-        print(f"TMD midpoint: {mid:.2f}, Box Z: {frame.dimensions[2]:.2f}")
-        if bottom < 30 or top > frame.dimensions[2]-30:
-            print("Not enough space at top or bottom")
-            return False
+    print(f"TMD midpoint: {mid:.2f} Box midpoint: {zdiff/2+low:.2f}")
+    if bottom-low < 30 or top > high-30:
+       print("Not enough space at top or bottom")
+       return False
     return True
 
 def compute_ion_transitions(u,ion_selection = 'resname CLA',
@@ -53,8 +54,9 @@ def compute_ion_transitions(u,ion_selection = 'resname CLA',
     '''Identify all the _full_ transitions through the transmembrane domain (as defined
     by the provided protein selections) for the specified ion.
     Returns the per-frame cummulative transition counts for both forward and backwards transitions.'''
-    top = u.select_atoms(top_selection)
     evaluate_box(u,bottom_selection,top_selection)
+
+    top = u.select_atoms(top_selection)
     print(f"Selection defining top of TMD has {len(top)} atoms")
     bottom = u.select_atoms(bottom_selection)
     print(f"Selection defining bottom of TMD has {len(bottom)} atoms")
