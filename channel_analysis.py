@@ -8,12 +8,13 @@ from MDAnalysis.coordinates.memory import MemoryReader
 import MDAnalysis.transformations as trans
 from mdahole2.analysis import HoleAnalysis
 from MDAnalysis.coordinates.memory import MemoryReader
+from matplotlib.ticker import FuncFormatter
 
 import pandas as pd
 import matplotlib.pyplot as plt
 from collections import OrderedDict
 import warnings
-import re,glob,os,gzip,pickle,argparse
+import re,glob,os,gzip,pickle,argparse,sys
 
 default_bottom_selection = 'resname ASP and resid 238 and name CA'
 default_top_selection = 'resname ALA and resid 263 and name CA'
@@ -94,7 +95,8 @@ def compute_ion_transitions(u,ion_selection = 'resname CLA',
 
 def plot_ion_density(u,outfile=None,ion_selection=default_ion_selection,
                      bottom_selection=default_bottom_selection,
-                     top_selection=default_top_selection):
+                     top_selection=default_top_selection,
+                     steps_per_ns=10):
     fig = plt.figure()
     cl = u.select_atoms(ion_selection)
     top = u.select_atoms(top_selection)
@@ -108,14 +110,20 @@ def plot_ion_density(u,outfile=None,ion_selection=default_ion_selection,
         plt.scatter(range(N),p,1,marker='.',alpha=0.5)
     plt.plot(tmd_t,color='k')
     plt.plot(tmd_b,color='k')
-    plt.xlim(0,N); plt.xlabel('Frame'); plt.ylabel('Ion Z-coord');
+    plt.xlim(0,N); plt.xlabel('Time (ns)',fontsize=14); 
+    plt.ylabel('Ion Z-coord',fontsize=14);
+    
+    formatter = FuncFormatter(lambda x,pos:  f'{x/steps_per_ns:g}')
+    plt.gca().xaxis.set_major_formatter(formatter)
+    
     if(outfile):
         plt.savefig(outfile,dpi=300,bbox_inches='tight')
 
 def plot_transitions(u,minrads=None,outfile=None,ion_name='Cl',
                      ion_selection=default_ion_selection,
                      bottom_selection=default_bottom_selection,
-                     top_selection=default_top_selection):
+                     top_selection=default_top_selection,
+                     steps_per_ns=10):
     fig, ax1 = plt.subplots(figsize=(6, 4))
     ax2 = ax1.twinx()
     if minrads:
@@ -126,7 +134,7 @@ def plot_transitions(u,minrads=None,outfile=None,ion_name='Cl',
         ax1.set_ylim(0, 4)
         ax1.tick_params(axis="y", labelcolor="#1f77b4")
 
-    ax2.set_xlabel('Time (ns)');    
+    ax1.set_xlabel('Time (ns)',fontsize=14);    
 
     ABC,CBA = compute_ion_transitions(u,ion_selection=ion_selection,bottom_selection=bottom_selection,top_selection=top_selection)
     plt.xlim(0,len(ABC))
@@ -138,6 +146,9 @@ def plot_transitions(u,minrads=None,outfile=None,ion_name='Cl',
     ax2.tick_params(axis="y", labelcolor="#2ca02c")
     ax2.set_ylim(0, 60)
 
+    formatter = FuncFormatter(lambda x,pos:  f'{x/steps_per_ns:g}')
+    ax1.xaxis.set_major_formatter(formatter)
+    
     if outfile:
         plt.savefig(outfile,dpi=300,bbox_inches='tight')
 
@@ -419,7 +430,10 @@ def plot_separate_combined_tmd(C,outfile=None,labels=None):
         plt.savefig(outfile,dpi=300,bbox_inches='tight')
     return fig        
     
-def plot_combined_transitions(us,outfile=None,title=None,ion_selection='resname CLA',ion_name='Cl-',bottom_selection=default_bottom_selection,top_selection=default_top_selection):
+def plot_combined_transitions(us,outfile=None,title=None,ion_selection='resname CLA',ion_name='Cl-',
+                        bottom_selection=default_bottom_selection,
+                        top_selection=default_top_selection,
+                        steps_per_ns=10):
     '''Plot all ion transitions for list of universes provided.
        Trajectories should be aligned.'''
         
@@ -444,6 +458,10 @@ def plot_combined_transitions(us,outfile=None,title=None,ion_selection='resname 
     if title:
         plt.title(title)
         
+    formatter = FuncFormatter(lambda x,pos:  f'{x/steps_per_ns:g}')
+    plt.gca().xaxis.set_major_formatter(formatter)
+    plt.xlabel("Time (ns)",fontsize=14)
+        
     if outfile != None:
         plt.savefig(outfile,dpi=300,bbox_inches='tight')
     return fig    
@@ -457,10 +475,17 @@ if __name__ == '__main__':
     parser.add_argument("--res_offset",default=44, type=int, help="Residue numbering adjustment")
     parser.add_argument("--hole_exe",default="hole",help="HOLE executable if not in path")
     parser.add_argument('--prefix',default=None,help="Prefix for output files")
+    parser.add_argument('--steps_per_ns',default=10,help="Number of frames per a ns")
+    parser.add_argument('--title',default=None,help="Plot title")
 
     args = parser.parse_args()
 
     #process trajectories individually
+    for traj in args.trajectory:  #mdanalysis provides cryptic errors when traj doesn't exist so check ourselves    
+        if not os.path.exists(traj):
+            sys.stderr.write(f'{traj} does not exist\n')
+            exit(-1)
+               
     uref = mda.Universe(args.topology, args.trajectory[0])
     hfiles = []
     us = []
@@ -475,10 +500,12 @@ if __name__ == '__main__':
             prefix = f'{args.prefix}_{i}'
         plot_ion_density(u,f'{prefix}_CLA_density.png', 'resname CLA',
                             bottom_selection=args.bottom_selection, 
-                            top_selection=args.top_selection)
+                            top_selection=args.top_selection,
+                            steps_per_ns=args.steps_per_ns)
         plot_ion_density(u,f'{prefix}_POT_density.png', 'resname POT',
                             bottom_selection=args.bottom_selection, 
-                            top_selection=args.top_selection)
+                            top_selection=args.top_selection,
+                            steps_per_ns=args.steps_per_ns)
         ha = perform_hole_analysis(u, outprefix=f'{prefix}_ha', 
                           bottom_selection=args.bottom_selection, 
                           top_selection=args.top_selection,
@@ -491,29 +518,38 @@ if __name__ == '__main__':
                      ion_name='Cl-',
                      ion_selection='resname CLA',
                      bottom_selection=args.bottom_selection,
-                     top_selection=args.top_selection)
+                     top_selection=args.top_selection,
+                     steps_per_ns=args.steps_per_ns)
         plot_transitions(u,minrads=ha.tmd['min_radii'],
                      outfile=f'{prefix}_POT_transitions.pdf',
                      ion_name='K+',
                      ion_selection='resname POT',
                      bottom_selection=args.bottom_selection,
-                     top_selection=args.top_selection)
+                     top_selection=args.top_selection,
+                     steps_per_ns=args.steps_per_ns)
 
     C = combine_tmd(hfiles)
     if args.prefix == None:
         prefix = unique_name(uref)
     else:
-        prefix = f'{args.prefix}_{i}'    
+        prefix = args.prefix  
+        
+    if args.title == None:
+        title = prefix
+    else:
+        title = args.title
     plot_combined_tmd(C,f'{prefix}_combined.pdf')
     plot_separate_combined_tmd(C,f'{prefix}_sep_combined.pdf')
     
-    plot_combined_transitions(us,f'{prefix}_CLA_transitions_combined.pdf',prefix,
+    plot_combined_transitions(us,f'{prefix}_CLA_transitions_combined.pdf',title,
                 ion_selection='resname CLA',ion_name='Cl-',
                 bottom_selection=args.bottom_selection,
-                top_selection=args.top_selection)
+                top_selection=args.top_selection,
+                steps_per_ns=args.steps_per_ns)
                 
-    plot_combined_transitions(us,f'{prefix}_POT_transitions_combined.pdf',prefix,
+    plot_combined_transitions(us,f'{prefix}_POT_transitions_combined.pdf',title,
                 ion_selection='resname POT',ion_name='K+',
                 bottom_selection=args.bottom_selection,
-                top_selection=args.top_selection)    
+                top_selection=args.top_selection,
+                steps_per_ns=args.steps_per_ns)    
     
