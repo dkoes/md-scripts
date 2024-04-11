@@ -461,6 +461,11 @@ def plot_combined_transitions(us,outfile=None,title=None,ion_selection='resname 
     formatter = FuncFormatter(lambda x,pos:  f'{x/steps_per_ns:g}')
     plt.gca().xaxis.set_major_formatter(formatter)
     plt.xlabel("Time (ns)",fontsize=14)
+    
+    tot = np.array(ABCs).mean(axis=0)[-1]
+    ns = len(ABCs[0])/steps_per_ns
+    rate = tot/ns
+    plt.text(0.5,0.95, f'{rate:.2f} transitions/ns', horizontalalignment='center',verticalalignment='top',fontsize=14,transform=plt.gca().transAxes)
         
     if outfile != None:
         plt.savefig(outfile,dpi=300,bbox_inches='tight')
