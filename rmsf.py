@@ -44,9 +44,9 @@ if args.out == None:
 else:
     prefix = args.out
     
-res = zip(sel.indices,sel.resids,sel.resnames,R.results['rmsf'])
-df = pd.DataFrame(res,columns=('index','resid','resname','rmsf'))
-df.to_csv(f'{prefix}.csv')
+res = zip(sel.indices,sel.resids,sel.resnames,sel.names,R.results['rmsf'])
+df = pd.DataFrame(res,columns=('index','resid','resname','name','rmsf'))
+df.to_csv(f'{prefix}.csv',index=False)
 
 u.add_TopologyAttr('tempfactors') # add empty attribute for all atoms
 u.trajectory[0]
