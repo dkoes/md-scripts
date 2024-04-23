@@ -6,23 +6,25 @@
 import MDAnalysis as mda
 import argparse
 from MDAnalysis.analysis import rms, align
+from MDAnalysis.analysis.base import AnalysisFromFunction
+from MDAnalysis.coordinates.memory import MemoryReader
 import MDAnalysis.analysis
 import os
 import pandas as pd
 from os.path import splitext, basename
+from MDAnalysis.coordinates.PDB import MultiPDBWriter
 
-parser = argparse.ArgumentParser(description='Identify most distinct frames of md trajectory\nIMPORTANT: assumes an aligned input')
-parser.add_argument("topology",required=True,help='Topology file')
-parser.add_argument("trajectory", nargs='+',required=True,'Trajectory file(s)')
-parser.add_argument("--selection",default="backbone",required=False,'Selection to align to, default backbone')
+parser = argparse.ArgumentParser(description='Calculate RMSF')
+parser.add_argument("topology",help='Topology file')
+parser.add_argument("trajectory", nargs='+',help='Trajectory file(s)')
+parser.add_argument("--selection",default="backbone",required=False,help='Selection to align to, default backbone')
 parser.add_argument("--out",default=None,required=False,help='Output prefix for csv and pdb file')
-
 args = parser.parse_args()
 
 U = mda.Universe(args.topology, args.trajectory)
 
 #strip water
-notwat = U.select_atoms('not resname WAT')
+notwat = U.select_atoms('not (resname WAT Cl- Na+)')
 u = mda.Merge(notwat).load_new(
          AnalysisFromFunction(lambda ag: ag.positions.copy(), notwat).run().results['timeseries'],
          format=MemoryReader)
@@ -34,7 +36,7 @@ ref = average.results.universe
 # align to this structure
 aligner = align.AlignTraj(u, ref, select=args.selection, in_memory=True).run()
 
-sel = u.select_atoms(args.selection)
+sel = u.select_atoms('protein')
 R = rms.RMSF(sel).run()
 
 if args.out == None:
@@ -48,7 +50,8 @@ df.to_csv(f'{prefix}.csv')
 
 u.add_TopologyAttr('tempfactors') # add empty attribute for all atoms
 u.trajectory[0]
-for residue, r_value in zip(sel.residues, R.results.rmsf):
-    residue.atoms.tempfactors = r_value
-    
+
+sel.tempfactors = R.results.rmsf
+
 u.atoms.write(f'{prefix}.pdb')
+
