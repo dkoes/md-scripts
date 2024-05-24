@@ -221,6 +221,10 @@ def align_traj(u, uref, bottom_selection=default_bottom_selection,
     print("Aligning trajectory")
     selstr = f'({top_selection}) or ({bottom_selection})'
     sel = u.select_atoms(selstr)
+    
+    if len(sel) == 0:
+        sys.stderr.write(f'Selection "{selstr}" is empty.')
+        sys.exit(1)
         
     if inmem or isinstance(u.trajectory, MemoryReader):
         align.AlignTraj(u, uref, selstr, in_memory=True).run()
@@ -496,6 +500,13 @@ if __name__ == '__main__':
     us = []
     for i,traj in enumerate(args.trajectory):
         u = mda.Universe(args.topology, traj)
+        if len(u.select_atoms(args.bottom_selection)) == 0:
+            print("Bottom selection did not select atoms:",args.bottom_selection)
+            sys.exit(-1)
+        if len(u.select_atoms(args.top_selection)) == 0:
+            print("Top selection did not select atoms:",args.top_selection)
+            sys.exit(-1)            
+            
         u = align_traj(u, uref,bottom_selection=args.bottom_selection,
                      top_selection=args.top_selection)
         us.append(u)
