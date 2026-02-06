@@ -19,6 +19,7 @@ import re,glob,os,gzip,pickle,argparse,sys
 default_bottom_selection = 'resname ASP and resid 238 and name CA'
 default_top_selection = 'resname ALA and resid 263 and name CA'
 default_ion_selection = 'resname CLA'
+default_counter_ion_selection = 'resname POT or resname SOD'
 default_res_offset=44
 
 def evaluate_box(U,bottom_selection = default_bottom_selection,
@@ -51,7 +52,8 @@ trajout strip.dcd dcd
 
 def compute_ion_transitions(u,ion_selection = 'resname CLA',
                             bottom_selection = 'resname ASP and resid 238 and name CA',
-                            top_selection = 'resname ALA and resid 263 and name CA'):
+                            top_selection = 'resname ALA and resid 263 and name CA',
+                            xybox=[]):
     '''Identify all the _full_ transitions through the transmembrane domain (as defined
     by the provided protein selections) for the specified ion.
     Returns the per-frame cummulative transition counts for both forward and backwards transitions.'''
@@ -74,7 +76,12 @@ def compute_ion_transitions(u,ion_selection = 'resname CLA',
     locs = np.array([(cl.positions[:,2] > tmd_t) + \
             ((cl.positions[:,2] <= tmd_t) & (cl.positions[:,2] > tmd_b))*2+ \
             (cl.positions[:,2] <= tmd_b)*4 for _ in u.trajectory]).T
-
+    inpore = np.ones_like(locs,dtype=bool)
+    if xybox:
+        inpore = np.array([(cl.positions[:,0] > xybox[0]) &
+                            (cl.positions[:,1] > xybox[1]) &
+                            (cl.positions[:,0] < xybox[2]) &
+                            (cl.positions[:,1] < xybox[3]) for _ in u.trajectory],dtype=bool).T
     prevAB = np.zeros(locs.shape[0])
     prevBC = np.zeros(locs.shape[0])
 
@@ -83,11 +90,11 @@ def compute_ion_transitions(u,ion_selection = 'resname CLA',
 
     for i in range(1,locs.shape[1]):
         diff = locs[:,i]-locs[:,i-1]
-        ABC[i] = ((diff == 2) & (prevAB == 1)).sum()
+        ABC[i] = ((diff == 2) & (prevAB == 1) & (inpore[:,i-1])).sum()
         prevAB[diff != 0] = 0
         prevAB[diff == 1] = 1    
 
-        CBA[i] = ((diff == -1) & (prevBC == 1)).sum()
+        CBA[i] = ((diff == -1) & (prevBC == 1) & (inpore[:,i-1])).sum()
         prevBC[diff != 0] = 0
         prevBC[diff == -2] = 1
     
@@ -96,7 +103,7 @@ def compute_ion_transitions(u,ion_selection = 'resname CLA',
 def plot_ion_density(u,outfile=None,ion_selection=default_ion_selection,
                      bottom_selection=default_bottom_selection,
                      top_selection=default_top_selection,
-                     steps_per_ns=10):
+                     steps_per_ns=10, xybox=[]):
     fig = plt.figure()
     cl = u.select_atoms(ion_selection)
     top = u.select_atoms(top_selection)
@@ -105,9 +112,16 @@ def plot_ion_density(u,outfile=None,ion_selection=default_ion_selection,
     tmd_t = [top.positions[:,2].mean() for _ in u.trajectory]
     tmd_b = [bottom.positions[:,2].mean() for _ in u.trajectory]
     positions = np.array([cl.positions[:,2] for _ in u.trajectory]).T
-    
-    for p in positions:
-        plt.scatter(range(N),p,1,marker='.',alpha=0.5)
+    inpore = np.ones_like(positions,dtype=bool)
+    if xybox:
+        inpore = np.array([(cl.positions[:,0] > xybox[0]) &
+                            (cl.positions[:,1] > xybox[1]) &
+                            (cl.positions[:,0] < xybox[2]) &
+                            (cl.positions[:,1] < xybox[3]) for _ in u.trajectory],dtype=bool).T
+    for (i,p) in enumerate(positions):
+        x = np.array(list(range(N)))
+        z = np.array(p)
+        plt.scatter(x[inpore[i]],p[inpore[i]],1,marker='.',alpha=0.5)
     plt.plot(tmd_t,color='k')
     plt.plot(tmd_b,color='k')
     plt.xlim(0,N); plt.xlabel('Time (ns)',fontsize=14); 
@@ -123,20 +137,20 @@ def plot_transitions(u,minrads=None,outfile=None,ion_name='Cl',
                      ion_selection=default_ion_selection,
                      bottom_selection=default_bottom_selection,
                      top_selection=default_top_selection,
-                     steps_per_ns=10):
+                     steps_per_ns=10, xybox=[]):
     fig, ax1 = plt.subplots(figsize=(6, 4))
     ax2 = ax1.twinx()
     if minrads:
         ax1.axhline(y=2.3, color="k", linestyle="--")
         ax1.axhline(y=1.75, color="red", linestyle="--")
         ax1.plot(minrads,color='#1f77b4',zorder=10,linewidth=1)
-        ax1.set_ylabel("Minimum Radius ($\mathrm{\AA}$)", color="#1f77b4", fontsize=14)
+        ax1.set_ylabel(r"Minimum Radius ($\mathrm{\AA}$)", color="#1f77b4", fontsize=14)
         ax1.set_ylim(0, 4)
         ax1.tick_params(axis="y", labelcolor="#1f77b4")
 
     ax1.set_xlabel('Time (ns)',fontsize=14);    
 
-    ABC,CBA = compute_ion_transitions(u,ion_selection=ion_selection,bottom_selection=bottom_selection,top_selection=top_selection)
+    ABC,CBA = compute_ion_transitions(u,ion_selection=ion_selection,bottom_selection=bottom_selection,top_selection=top_selection,xybox=xybox)
     plt.xlim(0,len(ABC))
     ax2.plot(ABC,color='#2ca02c',zorder=100,linewidth=3)
     ax2.plot(CBA,color='pink',zorder=99,linewidth=1)
@@ -272,7 +286,7 @@ def perform_hole_analysis(u, outprefix=None,
         cpoint=center, 
         prefix=f'hole{pid}',
         cvect=[0, 0, 1],
-        ignore_residues=['WAT','CLA','POT']
+        ignore_residues=['WAT','CLA','POT','SOD']
     ) 
     ha.run()
     ha.create_vmd_surface(filename=f"{outprefix}.vmd", dot_density=15)
@@ -322,7 +336,7 @@ def plot_profile(ha,outfile=None):
     plt.yticks(zcoords[1::2],labels[1::2]);
     plt.ylim(min(zpos),max(zpos))
     plt.xlim(0,10)
-    plt.xlabel('Pore Radius ($\mathrm{\AA}$)',fontsize=14);
+    plt.xlabel(r'Pore Radius ($\mathrm{\AA}$)',fontsize=14);
     
     if outfile:
         plt.savefig(outfile,dpi=300,bbox_inches='tight')
@@ -391,7 +405,7 @@ def plot_combined_tmd(C,outfile=None):
     plt.yticks(zcoords[1::2],zlabels[1::2]);
     plt.ylim(min(zpos),max(zpos))
     plt.xlim(0,10)
-    plt.xlabel('Pore Radius ($\mathrm{\AA}$)',fontsize=14)
+    plt.xlabel(r'Pore Radius ($\mathrm{\AA}$)',fontsize=14)
     
     if outfile:
         plt.savefig(outfile,dpi=300,bbox_inches='tight')
@@ -426,7 +440,7 @@ def plot_separate_combined_tmd(C,outfile=None,labels=None):
     plt.yticks(zcoords[1::2],zlabels[1::2]);
     plt.ylim(min(zpos),max(zpos))
     plt.xlim(0,10)
-    plt.xlabel('Pore Radius ($\mathrm{\AA}$)',fontsize=14)
+    plt.xlabel(r'Pore Radius ($\mathrm{\AA}$)',fontsize=14)
     if labels:
         plt.legend()
     
@@ -437,7 +451,7 @@ def plot_separate_combined_tmd(C,outfile=None,labels=None):
 def plot_combined_transitions(us,outfile=None,title=None,ion_selection='resname CLA',ion_name='Cl-',
                         bottom_selection=default_bottom_selection,
                         top_selection=default_top_selection,
-                        steps_per_ns=10):
+                        steps_per_ns=10,xybox=[]):
     '''Plot all ion transitions for list of universes provided.
        Trajectories should be aligned.'''
         
@@ -445,7 +459,7 @@ def plot_combined_transitions(us,outfile=None,title=None,ion_selection='resname 
     CBAs = []
     radii = []
     for u in us:
-        ABC,CBA = compute_ion_transitions(u,ion_selection=ion_selection,bottom_selection=bottom_selection,top_selection=top_selection)
+        ABC,CBA = compute_ion_transitions(u,ion_selection=ion_selection,bottom_selection=bottom_selection,top_selection=top_selection,xybox=xybox)
         ABCs.append(ABC)
         CBAs.append(CBA)
     
@@ -481,13 +495,23 @@ if __name__ == '__main__':
     parser.add_argument("trajectory",nargs='+',help="Trajectory file(s)")
     parser.add_argument("--top_selection",default=default_top_selection,help="Selection string for top of hole.")
     parser.add_argument("--bottom_selection",default=default_bottom_selection,help="Selection string for bottom of hole.")
+    parser.add_argument("--ion_selection",default=default_ion_selection,help="Selection string for ions.")
+    parser.add_argument("--counter_ion_selection",default=default_counter_ion_selection,help="Selection string for counter ions.")
+    parser.add_argument('--ion_name',default='Cl-',help='Name of ion')
+    parser.add_argument('--counter_ion_name',default='Positive Ion',help='Name of counter ion')
     parser.add_argument("--res_offset",default=44, type=int, help="Residue numbering adjustment")
     parser.add_argument("--hole_exe",default="hole",help="HOLE executable if not in path")
     parser.add_argument('--prefix',default=None,help="Prefix for output files")
-    parser.add_argument('--steps_per_ns',default=10,help="Number of frames per a ns")
+    parser.add_argument('--steps_per_ns',type=int,default=10,help="Number of frames per a ns")
     parser.add_argument('--title',default=None,help="Plot title")
+    parser.add_argument('--xybox',default=None,help='Optionally specify xmin,ymin,xmax,ymax as a region to limit analysis to.')
 
     args = parser.parse_args()
+
+    xybox = []
+    if args.xybox:
+        xybox = list(map(float,args.xybox.split(',')))
+        assert len(xybox) == 4
 
     #process trajectories individually
     for traj in args.trajectory:  #mdanalysis provides cryptic errors when traj doesn't exist so check ourselves    
@@ -514,14 +538,16 @@ if __name__ == '__main__':
             prefix = unique_name(u)
         else:
             prefix = f'{args.prefix}_{i}'
-        plot_ion_density(u,f'{prefix}_CLA_density.png', 'resname CLA',
+        plot_ion_density(u,f'{prefix}_ion_density.png', args.ion_selection,
                             bottom_selection=args.bottom_selection, 
                             top_selection=args.top_selection,
-                            steps_per_ns=args.steps_per_ns)
-        plot_ion_density(u,f'{prefix}_POT_density.png', 'resname POT',
+                            steps_per_ns=args.steps_per_ns,
+                            xybox=xybox)
+        plot_ion_density(u,f'{prefix}_counter_ion_density.png', args.counter_ion_selection,
                             bottom_selection=args.bottom_selection, 
                             top_selection=args.top_selection,
-                            steps_per_ns=args.steps_per_ns)
+                            steps_per_ns=args.steps_per_ns,
+                            xybox=xybox)
         ha = perform_hole_analysis(u, outprefix=f'{prefix}_ha', 
                           bottom_selection=args.bottom_selection, 
                           top_selection=args.top_selection,
@@ -530,19 +556,19 @@ if __name__ == '__main__':
         hfiles.append(f'{prefix}_ha.pkl.gz')
         plot_profile(ha,f'{prefix}_profile.pdf')
         plot_transitions(u,minrads=ha.tmd['min_radii'],
-                     outfile=f'{prefix}_CLA_transitions.pdf',
-                     ion_name='Cl-',
-                     ion_selection='resname CLA',
+                     outfile=f'{prefix}_ion_transitions.pdf',
+                     ion_name=args.ion_name,
+                     ion_selection=args.ion_selection,
                      bottom_selection=args.bottom_selection,
                      top_selection=args.top_selection,
-                     steps_per_ns=args.steps_per_ns)
+                     steps_per_ns=args.steps_per_ns, xybox=xybox)
         plot_transitions(u,minrads=ha.tmd['min_radii'],
-                     outfile=f'{prefix}_POT_transitions.pdf',
-                     ion_name='K+',
-                     ion_selection='resname POT',
+                     outfile=f'{prefix}_counter_ion_transitions.pdf',
+                     ion_name=args.counter_ion_name,
+                     ion_selection=args.counter_ion_selection,
                      bottom_selection=args.bottom_selection,
                      top_selection=args.top_selection,
-                     steps_per_ns=args.steps_per_ns)
+                     steps_per_ns=args.steps_per_ns, xybox=xybox)
 
     C = combine_tmd(hfiles)
     if args.prefix == None:
@@ -557,15 +583,15 @@ if __name__ == '__main__':
     plot_combined_tmd(C,f'{prefix}_combined.pdf')
     plot_separate_combined_tmd(C,f'{prefix}_sep_combined.pdf')
     
-    plot_combined_transitions(us,f'{prefix}_CLA_transitions_combined.pdf',title,
-                ion_selection='resname CLA',ion_name='Cl-',
+    plot_combined_transitions(us,f'{prefix}_ion_transitions_combined.pdf',title,
+                ion_selection=args.ion_selection,ion_name=args.ion_name,
                 bottom_selection=args.bottom_selection,
                 top_selection=args.top_selection,
-                steps_per_ns=args.steps_per_ns)
+                steps_per_ns=args.steps_per_ns,xybox=xybox)
                 
-    plot_combined_transitions(us,f'{prefix}_POT_transitions_combined.pdf',title,
-                ion_selection='resname POT',ion_name='K+',
+    plot_combined_transitions(us,f'{prefix}_counter_ion_transitions_combined.pdf',title,
+                ion_selection=args.counter_ion_selection,ion_name=args.counter_ion_name,
                 bottom_selection=args.bottom_selection,
                 top_selection=args.top_selection,
-                steps_per_ns=args.steps_per_ns)    
+                steps_per_ns=args.steps_per_ns,xybox=xybox)    
     

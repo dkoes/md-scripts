@@ -4,6 +4,7 @@
 traj=$2
 echo "parm ${1}"
 echo "trajin $traj"
+echo "autoimage anchor @CA"
 echo "autoimage anchor :POPC"
 echo "rms first @CA"
 echo "strip :WAT outprefix stripped"
