@@ -10,6 +10,8 @@ import argparse
 import multiprocessing
 from functools import partial
 
+multiprocessing.set_start_method('fork')
+
 parser = argparse.ArgumentParser(description='Generate pairwise RMSD heatmap plot.\nIMPORTANT: assumes an aligned input')
 parser.add_argument("topology")
 parser.add_argument("trajectory")
