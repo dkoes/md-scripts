@@ -517,7 +517,8 @@ model %s\n' %args.water_model
     ff = [ff]
     if nff:
         standard_res = standard_res.union(util.get_available_res(nff))
-        ff = ff.append(nff)
+        ff.append(nff)
+        
     #pdb4amber seems to delete mercury (HG) along with hydrogens; for now my
     #hacky fix is to store the relevant atom info if mercury is present and add
     #the mercury back in after stripping...I'm preemptively doing this for

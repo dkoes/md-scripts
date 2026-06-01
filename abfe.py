@@ -7,7 +7,10 @@ from rdkit.Chem import AllChem as Chem
 import openfe
 from openfe.protocols.openmm_utils.omm_settings import OpenFFPartialChargeSettings
 from openfe.protocols.openmm_utils.charge_generation import assign_offmol_partial_charges
-from openfe.protocols.openmm_afe import AbsoluteBindingProtocol;
+from openfe.protocols.openmm_afe import AbsoluteBindingProtocol
+from openfe.protocols.openmm_md import PlainMDProtocol
+from openff.units import unit
+
 from gufe.protocols import execute_DAG
 import pathlib
 import gzip
@@ -36,6 +39,9 @@ def parse_args():
         default=None,
         help="Output prefix (default: output)"
     )
+    
+    parser.add_argument("--plain", action='store_true',help='Execute a plain MD simulation')
+    parser.add_argument("--prod_length", type=float,help='Length of production simulation (ns)')
 
     return parser.parse_args()
 
@@ -90,9 +96,22 @@ if __name__ == "__main__":
         'solvent': solvent,
     })
 
-    settings = AbsoluteBindingProtocol.default_settings()
-    protocol = AbsoluteBindingProtocol(settings=settings)
-    dag = protocol.create(stateA=systemA, stateB=systemB, mapping=None)
+
+    if args.plain:
+        settings = PlainMDProtocol.default_settings()
+        if args.prod_length:
+            settings.simulation_settings.production_length = args.prod_length*unit.nanosecond
+        protocol = PlainMDProtocol(settings=settings)
+        dag = protocol.create(stateA=systemA, stateB=systemA, mapping=None)
+
+    else: #free energy
+        settings = AbsoluteBindingProtocol.default_settings()
+        if args.prod_length:
+            asettings.solvent_simulation_settings.production_length = args.prod_length*unit.nanosecond
+            asettings.complex_simulation_settings.production_length = args.prod_length*unit.nanosecond
+        protocol = AbsoluteBindingProtocol(settings=settings)
+        dag = protocol.create(stateA=systemA, stateB=systemB, mapping=None)
+
 
     outdir = args.output
     if outdir is None:
@@ -100,7 +119,7 @@ if __name__ == "__main__":
 
     path = pathlib.Path(outdir)
     path.mkdir(exist_ok=True)
-
+    
     print("Running...")
     # Execute the DAG
     dag_results = execute_DAG(dag, scratch_basedir=path, shared_basedir=path, n_retries=3,keep_shared=True)
