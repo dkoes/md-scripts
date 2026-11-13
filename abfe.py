@@ -1,4 +1,8 @@
 #!/usr/bin/env python3
+"""Run OpenFE absolute binding free energy or plain MD simulations.
+
+See README.md for input preparation, dependencies, usage, and output details.
+"""
 
 import argparse
 import os
@@ -18,8 +22,9 @@ import json
 import gufe
 
 def parse_args():
+    """Parse input paths, simulation mode, and optional production length."""
     parser = argparse.ArgumentParser(
-        description="OpenFE Absolute Binding Free Energy"
+        description="OpenFE absolute binding free energy or plain MD simulation"
     )
 
     parser.add_argument(
@@ -37,7 +42,7 @@ def parse_args():
     parser.add_argument(
         "-o", "--output",
         default=None,
-        help="Output prefix (default: output)"
+        help="Output directory (default: first word of the ligand title, or ligand filename stem)"
     )
     
     parser.add_argument("--plain", action='store_true',help='Execute a plain MD simulation')
@@ -47,6 +52,7 @@ def parse_args():
 
 
 def check_file(path, label):
+    """Exit with a labelled error if an input path is not an existing file."""
     if not os.path.exists(path):
         sys.exit(f"ERROR: {label} file not found: {path}")
     if not os.path.isfile(path):
@@ -63,7 +69,8 @@ if __name__ == "__main__":
     suppl = Chem.SDMolSupplier(args.ligand, removeHs=False)
     mol = next(suppl)
     mol = Chem.AddHs(mol,addCoords=True)
-    name = mol.GetProp('_Name').split()[0]
+    title = mol.GetProp('_Name').split() if mol.HasProp('_Name') else []
+    name = title[0] if title else pathlib.Path(args.ligand).stem
     ligand = openfe.SmallMoleculeComponent.from_rdkit(mol)
 
     print("Calculating partial charges")
@@ -84,13 +91,13 @@ if __name__ == "__main__":
     solvent = openfe.SolventComponent()
     protein = openfe.ProteinComponent.from_pdb_file(args.receptor)
 
-    # In state A the ligand is fully interacting in the solvent
+    # State A is the fully interacting, solvated protein-ligand complex.
     systemA = openfe.ChemicalSystem({
         'ligand': ligand,
         'protein': protein,
         'solvent': solvent,
     }, name=ligand.name)
-    # In state B the ligand is fully decoupled in the solvent, therefore we are only defining the solvent here
+    # State B omits the ligand; the ABFE protocol constructs both solvent and complex legs.
     systemB = openfe.ChemicalSystem({
         'protein': protein,
         'solvent': solvent,
@@ -107,8 +114,8 @@ if __name__ == "__main__":
     else: #free energy
         settings = AbsoluteBindingProtocol.default_settings()
         if args.prod_length:
-            asettings.solvent_simulation_settings.production_length = args.prod_length*unit.nanosecond
-            asettings.complex_simulation_settings.production_length = args.prod_length*unit.nanosecond
+            settings.solvent_simulation_settings.production_length = args.prod_length*unit.nanosecond
+            settings.complex_simulation_settings.production_length = args.prod_length*unit.nanosecond
         protocol = AbsoluteBindingProtocol(settings=settings)
         dag = protocol.create(stateA=systemA, stateB=systemB, mapping=None)
 
@@ -122,7 +129,16 @@ if __name__ == "__main__":
     
     print("Running...")
     # Execute the DAG
-    dag_results = execute_DAG(dag, scratch_basedir=path, shared_basedir=path, n_retries=3,keep_shared=True)
+    dag_results = execute_DAG(
+        dag, scratch_basedir=path, shared_basedir=path,
+        n_retries=3, keep_shared=True, raise_error=False,
+    )
+    # A completed retry can leave earlier failures in an otherwise successful DAG.
+    if not dag_results.ok():
+        for failure in dag_results.protocol_unit_failures:
+            print(f"ERROR: {failure.name}: {failure.exception}", file=sys.stderr)
+            print(failure.traceback, file=sys.stderr)
+        sys.exit("ERROR: Simulation failed after retries; results were not gathered.")
 
     protocol_results = protocol.gather([dag_results])
     print(f"ABFE dG: {protocol_results.get_estimate()}, err {protocol_results.get_uncertainty()}")
