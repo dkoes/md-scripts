@@ -20,6 +20,7 @@ import pathlib
 import gzip
 import json
 import gufe
+from openmm.app import ForceField, Modeller, PDBFile
 
 def parse_args():
     """Parse input paths, simulation mode, and optional production length."""
@@ -59,11 +60,34 @@ def check_file(path, label):
         sys.exit(f"ERROR: {label} is not a file: {path}")
 
 
+def validate_receptor_topology(pdb_path):
+    """Validate a receptor against Amber14 without changing the input file."""
+    forcefield = ForceField("amber14-all.xml", "amber14/tip3p.xml")
+
+    try:
+        pdb = PDBFile(str(pdb_path))
+        modeller = Modeller(pdb.topology, pdb.positions)
+        modeller.addHydrogens(forcefield)
+        forcefield.createSystem(modeller.topology)
+    except ValueError as error:
+        return str(error)
+
+    return None
+
+
 if __name__ == "__main__":
     args = parse_args()
 
     check_file(args.ligand, "Ligand")
     check_file(args.receptor, "Receptor")
+
+    topology_error = validate_receptor_topology(args.receptor)
+    if topology_error:
+        sys.exit(
+            "ERROR: Receptor topology is invalid:\n"
+            f"{topology_error}\n"
+            "Fix the receptor with pdbfixer and rerun; the input file was not modified."
+        )
 
     print(f"Reading {args.ligand}")
     suppl = Chem.SDMolSupplier(args.ligand, removeHs=False)

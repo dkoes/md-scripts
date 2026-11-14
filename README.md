@@ -13,8 +13,8 @@ unless a production length is supplied.
 
 Run the script in a compatible OpenFE environment containing RDKit, GUFE,
 OpenFF Toolkit and Units, OpenMM, and AmberTools. The script explicitly uses
-AmberTools for AM1-BCC partial charges. This repository does not pin package
-versions; use the [OpenFE installation instructions](https://docs.openfree.energy/en/stable/installation.html)
+AmberTools for AM1-BCC partial charges. This repository does not pin package versions;
+use the [OpenFE installation instructions](https://docs.openfree.energy/en/stable/installation.html)
 to set up an environment with compatible dependencies.
 
 Provide:
@@ -25,9 +25,13 @@ Provide:
   Existing hydrogens are retained, and missing hydrogens are added with
   coordinates. A molecule title is optional.
 
-The script does not dock the ligand or prepare the receptor. Protonation states,
-the binding pose, and suitability for the selected OpenFE protocol must be
-established before running it. Check the
+Before setting up a simulation, the script validates the receptor topology
+against OpenMM's Amber14 force field. It temporarily adds hydrogens to an
+in-memory model for validation but never alters the supplied receptor. If the
+topology is invalid, it stops and suggests fixing the structure with PDBFixer.
+The script does not dock the ligand or otherwise prepare the receptor.
+Protonation states, the binding pose, and suitability for the selected OpenFE
+protocol must still be established before running it. Check the
 [OpenFE ABFE guide](https://docs.openfree.energy/en/v1.12.0/guide/protocols/absolutebinding.html)
 and the restrictions of your installed protocol when choosing inputs and
 assessing convergence.
