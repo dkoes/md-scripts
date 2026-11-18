@@ -137,6 +137,8 @@ if __name__ == "__main__":
 
     else: #free energy
         settings = AbsoluteBindingProtocol.default_settings()
+        settings.solvent_simulation_settings.real_time_analysis_interval = None
+        settings.complex_simulation_settings.real_time_analysis_interval = None
         if args.prod_length:
             settings.solvent_simulation_settings.production_length = args.prod_length*unit.nanosecond
             settings.complex_simulation_settings.production_length = args.prod_length*unit.nanosecond
